@@ -89,7 +89,7 @@ local function make_lookup_by_key(key, list)
 end
 
 ---@class devcontainers.LspModelContext
----@field model table<string, LspMetaModel.Request>
+---@field model LspMetaModel.Model
 ---@field requests table<string, LspMetaModel.Request>
 ---@field notifications table<string, LspMetaModel.Notification>
 ---@field type_aliases table<string, LspMetaModel.TypeAlias>
@@ -347,9 +347,9 @@ local function item_to_string(item)
     elseif item.type then ---@cast item LspMetaModel.TypeAlias
         return string.format('TypeAlias(%s)', item.name)
     elseif item.properties then ---@cast item LspMetaModel.Structure
-        return string.format('TypeAlias(%s)', item.name)
+        return string.format('Structure(%s)', item.name)
     elseif item.values then ---@cast item LspMetaModel.Enumeration
-        return string.format('TypeAlias(%s)', item.name)
+        return string.format('Enumeration(%s)', item.name)
     else
         return '<?>'
     end
