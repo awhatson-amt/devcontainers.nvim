@@ -368,10 +368,9 @@ end
 ---@return fun(): devcontainers.LspTypeIter.Item?, devcontainers.LspTypeVisitor?
 function Visitor:iter(typ)
     return coroutine.wrap(function()
-        -- self:visit(typ, function(item)
-        --     coroutine.yield(item, self)
-        -- end)
-        self:visit(typ, coroutine.yield)
+        self:visit(typ, function(item)
+            coroutine.yield(item, self)
+        end)
     end)
 end
 
