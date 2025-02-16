@@ -213,7 +213,6 @@ end
 
 ---@param typ LspMetaModel.Type
 ---@param on_item fun(item: devcontainers.LspTypeIter.Item)
----@return devcontainers.LspTypeIter.Item?
 function Visitor:visit(typ, on_item)
     if not self:push(typ) then
         return
@@ -364,9 +363,27 @@ function Visitor:__tostring()
     return table.concat(stack, '.')
 end
 
+--- Iterator adapter for the visitor
+---@param typ LspMetaModel.Type
+---@return fun(): devcontainers.LspTypeIter.Item?, devcontainers.LspTypeVisitor?
+function Visitor:iter(typ)
+    return coroutine.wrap(function()
+        -- self:visit(typ, function(item)
+        --     coroutine.yield(item, self)
+        -- end)
+        self:visit(typ, coroutine.yield)
+    end)
+end
+
 ---@return devcontainers.LspTypeVisitor
 function M.Context:type_visitor()
     return Visitor:new(self)
+end
+
+---@param typ LspMetaModel.Type
+---@return fun(): devcontainers.LspTypeIter.Item?, devcontainers.LspTypeVisitor?
+function M.Context:iter_types(typ)
+    return Visitor:new(self):iter(typ)
 end
 
 return M
