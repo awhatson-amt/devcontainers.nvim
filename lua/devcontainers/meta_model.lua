@@ -162,11 +162,47 @@ function M.Context:resolve_type(typ)
     end
 end
 
+---@class devcontainers.LspTypeIter.Item.map.key
+---@field info 'map.key'
+---@field key LspMetaModel.Type.map.key
+
+---@class devcontainers.LspTypeIter.Item.map.value
+---@field info 'map.value'
+---@field value LspMetaModel.Type
+
+---@class devcontainers.LspTypeIter.Item.and
+---@field info 'and.index'
+---@field index integer
+---@field item LspMetaModel.Type
+
+---@class devcontainers.LspTypeIter.Item.or
+---@field info 'or.index'
+---@field index integer
+---@field item LspMetaModel.Type
+
+---@class devcontainers.LspTypeIter.Item.tuple
+---@field info 'tuple.index'
+---@field index integer
+---@field item LspMetaModel.Type
+
+---@class devcontainers.LspTypeIter.Item.property
+---@field info 'property'
+---@field property LspMetaModel.Property
+
+---@alias devcontainers.LspTypeIter.Item.info
+---| devcontainers.LspTypeIter.Item.map.key
+---| devcontainers.LspTypeIter.Item.map.value
+---| devcontainers.LspTypeIter.Item.and
+---| devcontainers.LspTypeIter.Item.or
+---| devcontainers.LspTypeIter.Item.tuple
+---| devcontainers.LspTypeIter.Item.property
+
 ---@alias devcontainers.LspTypeIter.Item
 ---| LspMetaModel.Type
 ---| LspMetaModel.TypeAlias
 ---| LspMetaModel.Structure
 ---| LspMetaModel.Enumeration
+---| devcontainers.LspTypeIter.Item.info
 
 ---@class devcontainers.LspTypeVisitor
 ---@field ctx devcontainers.LspModelContext
@@ -226,19 +262,19 @@ function Visitor:visit(typ, on_item)
     elseif typ.kind == 'array' then
         self:visit(typ.element, on_item)
     elseif typ.kind == 'map' then
-        self:visit(typ.key, on_item)
-        self:visit(typ.value, on_item)
+        self:visit_with_info({ info = 'map.key', key = typ.key }, typ.key, on_item)
+        self:visit_with_info({ info = 'map.value', key = typ.value }, typ.value, on_item)
     elseif typ.kind == 'and' then
-        for _, item in ipairs(typ.items) do
-            self:visit(item, on_item)
+        for i, item in ipairs(typ.items) do
+            self:visit_with_info({ info = 'and.index', index = i, item = item }, item, on_item)
         end
     elseif typ.kind == 'or' then
-        for _, item in ipairs(typ.items) do
-            self:visit(item, on_item)
+        for i, item in ipairs(typ.items) do
+            self:visit_with_info({ info = 'or.index', index = i, item = item }, item, on_item)
         end
     elseif typ.kind == 'tuple' then
-        for _, item in ipairs(typ.items) do
-            self:visit(item, on_item)
+        for i, item in ipairs(typ.items) do
+            self:visit_with_info({ info = 'tuple.index', index = i, item = item }, item, on_item)
         end
     elseif typ.kind == 'literal' then
         self:visit_structure(typ.value, on_item)
@@ -249,6 +285,17 @@ function Visitor:visit(typ, on_item)
         error(string.format('Invalid kind=%s', typ['kind']))
     end
 
+    self:pop()
+end
+
+---@private
+---@param info devcontainers.LspTypeIter.Item.info
+---@param typ LspMetaModel.Type
+---@param on_item fun(item: devcontainers.LspTypeIter.Item)
+function Visitor:visit_with_info(info, typ, on_item)
+    self:push(info)
+    on_item(info)
+    self:visit(typ, on_item)
     self:pop()
 end
 
@@ -315,7 +362,7 @@ function Visitor:visit_structure(struct, on_item)
         end
     end
     for _, prop in pairs(props) do
-        self:visit(prop.type, on_item)
+        self:visit_with_info({ info = 'property', property = prop }, prop.type, on_item)
     end
 end
 
@@ -344,6 +391,18 @@ local function item_to_string(item)
         return item.kind
     elseif item.kind == 'booleanLiteral' then
         return item.kind
+    elseif item.info == 'map.key' then
+        return 'map_key'
+    elseif item.info == 'map.value' then
+        return 'map_value'
+    elseif item.info == 'and.index' then
+        return string.format('[%d]', item.index)
+    elseif item.info == 'or.index' then
+        return string.format('[%d]', item.index)
+    elseif item.info == 'tuple.index' then
+        return string.format('[%d]', item.index)
+    elseif item.info == 'property' then
+        return string.format('[%s]', item.property.name)
     elseif item.type then ---@cast item LspMetaModel.TypeAlias
         return string.format('TypeAlias(%s)', item.name)
     elseif item.properties then ---@cast item LspMetaModel.Structure
@@ -351,17 +410,66 @@ local function item_to_string(item)
     elseif item.values then ---@cast item LspMetaModel.Enumeration
         return string.format('Enumeration(%s)', item.name)
     else
-        return '<?>'
+        error(string.format('Invalid item: %s', vim.inspect(item)))
     end
 end
 
-function Visitor:__tostring()
+---@param item devcontainers.LspTypeIter.Item
+---@return string
+local function item_to_string_short(item)
+    if item.kind == 'base' then
+        return string.format(' = %s', item.name)
+    elseif item.kind == 'reference' then
+    elseif item.kind == 'array' then
+        return '.[]'
+    elseif item.kind == 'map' then
+    elseif item.kind == 'and' then
+    elseif item.kind == 'or' then
+    elseif item.kind == 'tuple' then
+    elseif item.kind == 'literal' then
+    elseif item.kind == 'stringLiteral' then
+        return string.format(' = %s', item.value)
+    elseif item.kind == 'integerLiteral' then
+        return string.format(' = %s', item.value)
+    elseif item.kind == 'booleanLiteral' then
+        return string.format(' = %s', item.value)
+    elseif item.info == 'map.key' then
+        return '.<[],>'
+    elseif item.info == 'map.value' then
+        return '.<,[]>'
+    elseif item.info == 'and.index' then
+    elseif item.info == 'or.index' then
+    elseif item.info == 'tuple.index' then
+        return string.format('.[%d]', item.index)
+    elseif item.info == 'property' then
+        return string.format('.[%s]', item.property.name)
+    elseif item.type then ---@cast item LspMetaModel.TypeAlias
+    elseif item.properties then ---@cast item LspMetaModel.Structure
+    elseif item.values then ---@cast item LspMetaModel.Enumeration
+        return string.format(' = %s', item.name)
+    else
+        error(string.format('Invalid item: %s', vim.inspect(item)))
+    end
+    return ''
+end
+
+function Visitor:tostring_full()
     local stack = {}
     for i, v in ipairs(self.stack) do
         stack[i] = item_to_string(v)
     end
     return table.concat(stack, '.')
 end
+
+function Visitor:tostring_short()
+    local stack = {}
+    for i, v in ipairs(self.stack) do
+        stack[i] = item_to_string_short(v)
+    end
+    return table.concat(stack)
+end
+
+Visitor.__tostring = Visitor.tostring_short
 
 --- Iterator adapter for the visitor
 ---@param typ LspMetaModel.Type
