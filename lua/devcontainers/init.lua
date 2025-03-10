@@ -2,7 +2,7 @@ local M = {}
 
 function M.setup()
     local rpc = require('devcontainers.lsp.rpc_mapping')
-    local log = require('devcontainers.log')('init')
+    local log = require('devcontainers.log').path
 
     ---@param item devcontainers.LspTypeIter.Item
     local function is_uri(item)
@@ -14,7 +14,7 @@ function M.setup()
     ---@param uri string
     ---@return string
     local function map_fn(ctx, uri)
-        log('%s:%s:%s: "%s" ', ctx.method, ctx.direction, ctx.type, uri)
+        log.debug('%s:%s:%s: "%s" ', ctx.method, ctx.direction, ctx.type, uri)
         return uri
     end
 

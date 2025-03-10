@@ -2,7 +2,7 @@ local M = {}
 
 local meta_model = require('devcontainers.lsp.meta_model')
 local OperationTree = require('devcontainers.lsp.operation_tree').OperationTree
-local log = require('devcontainers.log')('rpc')
+local log = require('devcontainers.log').rpc
 
 local model_ctx = meta_model.Context:new(meta_model.load())
 
@@ -138,7 +138,7 @@ local function apply(value, fn, ctx)
             value = new_value
         else
             local err = new_value
-            log('ERROR: %s:\nmethod=%s, direction=%s type=%s, tree=%s,\nvalue=%s', err, ctx.method, ctx.direction, ctx.type, ctx.tree, vim.inspect(value))
+            log.error('%s:\nmethod=%s, direction=%s type=%s, tree=%s,\nvalue=%s', err, ctx.method, ctx.direction, ctx.type, ctx.tree, vim.inspect(value))
         end
     end
     return value
