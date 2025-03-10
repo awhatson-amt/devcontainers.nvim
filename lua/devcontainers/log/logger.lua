@@ -32,7 +32,7 @@ local M = {}
 ---@field info fun(...)
 ---@field warn fun(...)
 ---@field error fun(...)
----@field throw fun(...) invokes error(string.format(...)) + logs to file as ERROR
+---@field exception fun(...) invokes error(string.format(...)) + logs to file as ERROR
 ---@field _fd? integer file descriptor
 ---@field _file_ok? boolean file open status
 local Logger = {}
@@ -120,7 +120,7 @@ function Logger:new(name, config)
             end
         end
     end
-    o.throw = function(...)
+    o.exception = function(...)
         error(o.error(...))
     end
 
