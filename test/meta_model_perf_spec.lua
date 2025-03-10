@@ -1,4 +1,4 @@
-local meta_model = require('devcontainers.meta_model')
+local meta_model = require('devcontainers.lsp.meta_model')
 local M = meta_model.Context:new(meta_model.load())
 
 describe('meta_model_perf', function()

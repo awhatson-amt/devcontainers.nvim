@@ -1,5 +1,5 @@
 local say = require('say')
-local meta_model = require('devcontainers.meta_model')
+local meta_model = require('devcontainers.lsp.meta_model')
 
 local ctx = meta_model.Context:new(meta_model.load())
 

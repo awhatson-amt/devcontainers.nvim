@@ -1,7 +1,7 @@
 local M = {}
 
 function M.setup()
-    local rpc = require('devcontainers.rpc_mapping')
+    local rpc = require('devcontainers.lsp.rpc_mapping')
     local log = require('devcontainers.log')('init')
 
     ---@param item devcontainers.LspTypeIter.Item

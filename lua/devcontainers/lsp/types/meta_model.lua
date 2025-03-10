@@ -1,4 +1,5 @@
 ---@meta
+error('Meta file')
 
 -- Written based on metaModel.ts
 -- TODO: this could be generated from metaModel.schema.json

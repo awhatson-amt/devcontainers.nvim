@@ -1,7 +1,7 @@
 local M = {}
 
-local meta_model = require('devcontainers.meta_model')
-local OperationTree = require('devcontainers.operation_tree').OperationTree
+local meta_model = require('devcontainers.lsp.meta_model')
+local OperationTree = require('devcontainers.lsp.operation_tree').OperationTree
 local log = require('devcontainers.log')('rpc')
 
 local model_ctx = meta_model.Context:new(meta_model.load())
@@ -23,12 +23,7 @@ local model_ctx = meta_model.Context:new(meta_model.load())
 
 ---@alias devcontainers.rpc.MappingFn fun(ctx: devcontainers.rpc.MappingContext, value: any)
 
----@param item devcontainers.LspTypeIter.Item
-local function is_uri(item)
-    return item.kind == 'base' and (item.name == 'URI' or item.name == 'DocumentUri')
-end
-
----@return devcontainers.LspDirectionPathMappings
+---@return devcontainers.rpc.DirectionMappings
 local function new_dir_mappings()
     return {
         request_params = {},
@@ -40,7 +35,7 @@ end
 ---@param item_filter fun(item: devcontainers.LspTypeIter.Item): boolean should only match on basic (leaf) items!
 ---@return devcontainers.rpc.Mappings
 function M.make_mappings(item_filter)
-    ---@type devcontainers.LspPathMappings
+    ---@type devcontainers.rpc.Mappings
     local mappings = {
         server2client = new_dir_mappings(),
         client2server = new_dir_mappings(),
@@ -92,6 +87,43 @@ function M.make_mappings(item_filter)
     return mappings
 end
 
+--- Timings in milliseconds
+M.stats = {
+    min = math.huge,
+    max = 0,
+    total = 0,
+    count = 0,
+}
+
+function M.show_stats()
+    print(string.format(
+        'count: %d\nmean: %.3f ms\nmax: %.3f ms\nmin: %.3f ms\n',
+        M.stats.count,
+        M.stats.total / M.stats.count,
+        M.stats.max,
+        M.stats.min
+    ))
+end
+
+---@generic T: function
+---@param fn T
+---@return T
+local function timed(fn)
+    return function(...)
+        local start = vim.uv.hrtime()
+        local value = fn(...)
+        local elapsed = vim.uv.hrtime() - start
+
+        local ms = elapsed / 1e6
+        M.stats.count = M.stats.count + 1
+        M.stats.min = math.min(M.stats.min, ms)
+        M.stats.max = math.max(M.stats.max, ms)
+        M.stats.total = M.stats.total + ms
+
+        return value
+    end
+end
+
 ---@generic T
 ---@param value T
 ---@param fn devcontainers.rpc.MappingFn
@@ -111,6 +143,8 @@ local function apply(value, fn, ctx)
     end
     return value
 end
+
+apply = timed(apply)
 
 ---@param dispatchers vim.lsp.rpc.Dispatchers
 ---@param mappings devcontainers.rpc.DirectionMappings

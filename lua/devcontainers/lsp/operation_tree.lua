@@ -3,10 +3,6 @@
 local M = {}
 
 local class = require('devcontainers.class')
-local meta_model = require('devcontainers.meta_model')
-local log = require('devcontainers.log')('generate')
-
-local ctx = meta_model.Context:new(meta_model.load())
 
 local function has_field(v, key)
     return type(v) == 'table' and v[key] ~= nil
@@ -24,10 +20,10 @@ function OperationTree:matches(value)
     error(string.format('Not implemented: %s', value))
 end
 
----@param fn devcontainers.OperationTree.Value.Fn
+---@param _fn devcontainers.OperationTree.Value.Fn
 ---@param value any
 ---@return any
-function OperationTree:apply(fn, value)
+function OperationTree:apply(_fn, value)
     error(string.format('Not implemented: %s', value))
 end
 
