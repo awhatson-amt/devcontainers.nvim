@@ -22,6 +22,7 @@ local M = {}
 
 ---@class devcontainers.Logger
 ---@field name string defaults to ''
+---@field notify_title? string
 ---@field prefix string
 ---@field level integer
 ---@field path string
@@ -95,14 +96,14 @@ end
 
 function Logger:_notify(method, level, ...)
     local msg = self:_log(level, ...)
-    local title = self.name ~= '' and self.name or nil
-    vim.notify(msg, level, { title = title })
+    vim.notify(msg, level, { title = self.notify_title })
 end
 
----@param string string
+---@param plugin_name string
+---@param name string
 ---@param config devcontainers.Logger.Config
 ---@return devcontainers.Logger
-function Logger:new(name, config)
+function Logger:new(plugin_name, name, config)
     local o = setmetatable({
         name = assert(name),
         level = assert(self.levels[config.level]),
@@ -111,6 +112,7 @@ function Logger:new(name, config)
     }, self)
 
     o.prefix = o.name == '' and '' or string.format('%s: ', o.name)
+    o.notify_title = o.name == '' and plugin_name or string.format('%s.%s', plugin_name, o.name)
 
     -- Pre-compute log functions
     for level, value in pairs(self.levels) do
@@ -135,6 +137,14 @@ function Logger:set_level(level)
     self.level = level
 end
 
+---@param level devcontainers.LogLevel|integer
+function Logger:level_enabled(level)
+    if type(level) ~= 'number' then
+        level = assert(self.levels[level], 'Invalid value for log level')
+    end
+    return level >= self.level
+end
+
 local default_config = {
     level = 'warn',
     timestamp = '%F %H:%M:%S',
@@ -154,7 +164,7 @@ function M.make_registry(plugin_name, config)
     }, config or {})
     return setmetatable({}, {
         __index = function(t, name)
-            t[name] = Logger:new(name, config)
+            t[name] = Logger:new(plugin_name, name, config)
             return assert(rawget(t, name))
         end,
         __call = function(t, name)
