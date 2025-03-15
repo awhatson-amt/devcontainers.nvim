@@ -50,6 +50,8 @@ function M.open(path)
     local fd = vim.uv.fs_open(path, 'a', perms_rw)
     if fd then
         M.file_descriptors[path] = fd
+        -- add newline when starting new log to make it easier to find the start
+        M.write(fd, '\n')
     else
         vim.notify_once(string.format('Could not create log file "%s"', path), vim.log.levels.ERROR)
     end

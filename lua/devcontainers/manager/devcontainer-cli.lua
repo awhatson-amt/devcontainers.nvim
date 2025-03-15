@@ -3,8 +3,8 @@ local M = {}
 local utils = require('devcontainers.utils')
 local log = require('devcontainers.log')['devcontainer-cli']
 
-local system = utils.timed(utils.system, function(time_us, cmd, _opts)
-    log.trace('Command took %.3f ms: %s', time_us, table.concat(cmd, ' '))
+local system = utils.timed(utils.system, function(time_ms, cmd, _opts)
+    log.trace('Command took %.3f ms: %s', time_ms, table.concat(cmd, ' '))
 end)
 
 -- TODO: use this at least in health check

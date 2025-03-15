@@ -1,30 +1,43 @@
 local M = {}
 
-function M.setup()
-    local rpc = require('devcontainers.lsp.rpc_mapping')
-    local log = require('devcontainers.log').path
+function M.on_new_config(config, root_dir)
+    local manager = require('devcontainers.manager')
+    local utils = require('devcontainers.utils')
+    local log = require('devcontainers.log')()
 
-    ---@param item devcontainers.LspTypeIter.Item
-    local function is_uri(item)
-        return item.kind == 'base' and (item.name == 'URI' or item.name == 'DocumentUri')
-    end
-    local mappings = rpc.make_mappings(is_uri)
-
-    ---@param ctx devcontainers.rpc.MappingContext
-    ---@param uri string
-    ---@return string
-    local function map_fn(ctx, uri)
-        log.debug('%s:%s:%s: "%s" ', ctx.method, ctx.direction, ctx.type, uri)
-        return uri
+    if not manager.is_workspace_dir(root_dir) then
+        log.trace('on_new_config(%s): not a workspace dir: %s', config.name, root_dir)
+        return
     end
 
-    local lspconfig_util = require('lspconfig.util')
+    if type(config.cmd) ~= 'table' then
+        log.notify.error('Could not attach: config.cmd is not a table: %s at %s', config.name, root_dir)
+        return
+    end
 
-    lspconfig_util.on_setup = lspconfig_util.add_hook_after(lspconfig_util.on_setup, function(config)
-        config.on_new_config = lspconfig_util.add_hook_after(config.on_new_config, function(config, root_dir)
-            rpc.patch_config(config, mappings, map_fn)
-        end)
-    end)
+    if config.cmd[1] == 'devcontainer' then
+        log.notify.error('Could not attach: config.cmd already starts with "devcontainer": %s at %s', config.name, root_dir)
+        return
+    end
+
+    local success = manager.ensure_up(root_dir)
+    if not success then
+        log.error('Could not start devcontainer for %s in %s', config.name, root_dir)
+        return
+    end
+
+    -- Update command to start in devcontainer
+    config.cmd = vim.list_extend({ 'devcontainer', 'exec', '--workspace-folder', root_dir }, config.cmd)
+    log.trace('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect(config.cmd))
+
+    -- Setup path mappings
+    require('devcontainers.paths').patch_config(config, root_dir)
+    log.trace('on_new_config(%s): added path translation', config.name)
+end
+
+function M.open_log()
+    local log = require('devcontainers.log')()
+    vim.cmd.edit(log.path)
 end
 
 return M

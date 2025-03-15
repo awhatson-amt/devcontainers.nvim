@@ -28,7 +28,8 @@ local context_to_string_mt = { __tostring = context_to_string }
 ---@param ctx devcontainers.rpc.MappingContext
 ---@param value any
 local function map_uri(map_fn, ctx, value)
-    assert(not getmetatable(ctx)) -- currently we assume these are temporary tables
+    local mt = getmetatable(ctx)
+    assert(mt == nil or mt == context_to_string_mt) -- currently we assume these are temporary tables
     setmetatable(ctx, context_to_string_mt)
 
     if type(value) ~= 'string' or not value:match(URI_SCHEME_PATTERN) then
@@ -68,22 +69,23 @@ end
 
 local ensure_docker_handlers_loaded = utils.lazy(function()
     if package.loaded['netman'] then -- ok, netman.nvim available
-        return
+        return false
     end
 
     -- try to load netman.nvim
     -- utils.schedule_if_needed()
     if pcall(require, 'netman') then
-        return
+        return false
     end
 
     -- check for theoretical other plugins that could handle this
     local autocmds = vim.api.nvim_get_autocmds { event = 'BufReadCmd', pattern = 'docker://*' }
     if next(autocmds) then
-        return
+        return false
     end
 
     log.notify.warn('No handlers for "docker://" buffers: install netman.nvim or similar plugin')
+    return true
 end)
 
 ---@param config vim.lsp.ClientConfig
