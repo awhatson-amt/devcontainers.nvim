@@ -38,7 +38,7 @@ M.is_supported = utils.lazy(function()
     local ret = vim.system({'docker', 'events', '--help'}):wait()
     local supported = ret.code == 0
     if not supported then
-        vim.notify('`docker events` not supported', vim.log.levels.WARN)
+        log.notify.warn('`docker events` not supported')
     end
     return supported
 end)

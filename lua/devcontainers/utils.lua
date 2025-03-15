@@ -49,6 +49,19 @@ function M.coroutine_resume()
     end
 end
 
+---@generic T
+---@param fn T
+---@param warning? string
+---@return T
+function M.as_coroutine(fn, warning)
+    local co, is_main = coroutine.running()
+    if not (co and not is_main) then
+        log.warn('Not called from coroutine so wrapping%s', warning and (': ' .. warning) or '')
+        fn = coroutine.wrap(fn)
+    end
+    return fn
+end
+
 --- Ensure we end up in a state in which we can use full API
 ---@async
 function M.schedule()
@@ -106,5 +119,44 @@ function M.system(cmd, opts)
         return vim.system(cmd, opts):wait()
     end
 end
+
+---@generic T
+---@param fn T
+---@param on_time_ms fun(time_ms: number, ...)
+---@return T
+function M.timed(fn, on_time_ms)
+    return function(...)
+        local start = vim.uv.hrtime()
+        local ret = { pcall(fn, ...) }
+        local elapsed = vim.uv.hrtime() - start
+        on_time_ms(elapsed / 1e6, ...)
+        local ok = ret[1]
+        if not ok then
+            error(ret[2])
+        end
+        return unpack(ret, 2)
+    end
+end
+
+-- Not really needed right know
+-- local function freeze(tbl)
+--     return setmetatable({}, {
+--         __index = tbl,
+--         __newindex = function(_)
+--             error('Attempt to modify read-only table')
+--         end
+--     })
+-- end
+--
+-- local function deep_freeze(tbl)
+--     local new = {}
+--     for key, val in pairs(tbl) do
+--         if type(val) == 'table' then
+--             val = deep_freeze(val)
+--         end
+--         new[key] = val
+--     end
+--     return freeze(new)
+-- end
 
 return M

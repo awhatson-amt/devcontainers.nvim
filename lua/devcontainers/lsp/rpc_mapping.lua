@@ -6,9 +6,10 @@ local log = require('devcontainers.log').rpc
 
 local model_ctx = meta_model.Context:new(meta_model.load())
 
----@class devcontainers.rpc.Mappings
----@field server2client devcontainers.rpc.DirectionMappings
----@field client2server devcontainers.rpc.DirectionMappings
+---@alias devcontainers.rpc.Direction 'server2client'|'client2server'
+---@class devcontainers.rpc.PerDirection<T>: { server2client: T, client2server: T }
+
+---@alias devcontainers.rpc.Mappings devcontainers.rpc.PerDirection<devcontainers.rpc.DirectionMappings>
 
 ---@class devcontainers.rpc.DirectionMappings lookups by method
 ---@field request_params table<string, devcontainers.OperationTree>
@@ -17,7 +18,7 @@ local model_ctx = meta_model.Context:new(meta_model.load())
 
 ---@class devcontainers.rpc.MappingContext
 ---@field method string
----@field direction 'server2client'|'client2server'
+---@field direction devcontainers.rpc.Direction
 ---@field type 'request_params'|'request_result'|'notification_params'
 ---@field tree devcontainers.OperationTree
 
