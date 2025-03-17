@@ -35,9 +35,4 @@ function M.on_new_config(config, root_dir)
     log.trace('on_new_config(%s): added path translation', config.name)
 end
 
-function M.open_log()
-    local log = require('devcontainers.log')()
-    vim.cmd.edit(log.path)
-end
-
 return M
