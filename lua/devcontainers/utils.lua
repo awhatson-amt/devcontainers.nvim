@@ -127,7 +127,7 @@ end
 function M.timed(fn, on_time_ms)
     return function(...)
         local start = vim.uv.hrtime()
-        local ret = { pcall(fn, ...) }
+        local ret = { xpcall(fn, debug.traceback, ...) }
         local elapsed = vim.uv.hrtime() - start
         on_time_ms(elapsed / 1e6, ...)
         local ok = ret[1]
