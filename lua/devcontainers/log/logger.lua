@@ -94,9 +94,14 @@ function Logger:_log(level, ...)
     return msg
 end
 
-function Logger:_notify(method, level, ...)
+function Logger:_notify(level, ...)
     local msg = self:_log(level, ...)
     vim.notify(msg, level, { title = self.notify_title })
+end
+
+function Logger:_notify_once(level, ...)
+    local msg = self:_log(level, ...)
+    vim.notify_once(msg, level, { title = self.notify_title })
 end
 
 ---@param plugin_name string
@@ -113,12 +118,19 @@ function Logger:new(plugin_name, name, config)
 
     o.prefix = o.name == '' and '' or string.format('%s: ', o.name)
     o.notify_title = o.name == '' and plugin_name or string.format('%s.%s', plugin_name, o.name)
+    o.notify = {}
 
     -- Pre-compute log functions
     for level, value in pairs(self.levels) do
         if level ~= 'off' then
             o[level] = function(...)
                 return o:_log(value, ...)
+            end
+            o.notify[level] = function(...)
+                return o:_notify(value, ...)
+            end
+            o.notify[level .. '_once'] = function(...)
+                return o:_notify_once(value, ...)
             end
         end
     end
