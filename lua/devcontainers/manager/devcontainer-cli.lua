@@ -157,19 +157,22 @@ function M.ensure_up(workspace_dir, opts)
 
     local short_dir = utils.bind(utils.lazy(vim.fn.pathshorten), workspace_dir)
 
-    -- Check if container exists
-    local echo = system(opts.test_cmd or { 'devcontainer', 'exec', '--workspace-folder', workspace_dir, 'echo' })
-    if echo.code == 0 then
-        return true
+    -- If we already have this information then the container has already been started
+    if rawget(require('devcontainers.manager.cache').container, workspace_dir) then
+        return rawget(require('devcontainers.manager.cache').container, workspace_dir)
     end
 
-    -- Offer to start it
-    if opts.confirm then
-        local input = utils.ui_input {
-            prompt = string.format('Devcontainer for %s not running, start? [y/N]: ', short_dir()),
-        }
-        if not (input and vim.tbl_contains({'y', 'yes'}, input:lower())) then
-            return false
+    -- Check if container exists
+    local echo = system(opts.test_cmd or { 'devcontainer', 'exec', '--workspace-folder', workspace_dir, 'echo' })
+    if echo.code ~= 0 then
+        -- Offer to start it
+        if opts.confirm then
+            local input = utils.ui_input {
+                prompt = string.format('Devcontainer for %s not running, start? [y/N]: ', short_dir()),
+            }
+            if not (input and vim.tbl_contains({'y', 'yes'}, input:lower())) then
+                return false
+            end
         end
     end
 
