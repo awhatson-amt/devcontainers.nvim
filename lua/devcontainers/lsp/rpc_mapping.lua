@@ -155,6 +155,7 @@ function M.wrap_server_to_client(dispatchers, mappings, fn)
     ---@type vim.lsp.rpc.Dispatchers
     return {
         notification = function(method, params)
+            log.trace('server2client:notification:%s', method)
             params = apply(params, fn, {
                 method = method,
                 direction = 'server2client',
@@ -164,6 +165,7 @@ function M.wrap_server_to_client(dispatchers, mappings, fn)
             return dispatchers.notification(method, params)
         end,
         server_request = function(method, params)
+            log.trace('server2client:request:%s', method)
             params = apply(params, fn, {
                 method = method,
                 direction = 'server2client',
@@ -172,9 +174,10 @@ function M.wrap_server_to_client(dispatchers, mappings, fn)
             })
             local result, err = dispatchers.server_request(method, params)
             if not err then
+                log.trace('server2client:response:%s', method)
                 result = apply(result, fn, {
                     method = method,
-                    direction = 'server2client',
+                    direction = 'client2server', -- reversed
                     type = 'request_result',
                     tree = mappings.request_result[method]
                 })
@@ -182,9 +185,11 @@ function M.wrap_server_to_client(dispatchers, mappings, fn)
             return result, err
         end,
         on_exit = function(code, signal)
+            log.trace('server2client:on_exit: code=%s signal=%s', code, signal)
             return dispatchers.on_exit(code, signal)
         end,
         on_error = function(code, err)
+            log.trace('server2client:on_error: code=%s err=%s', code, err)
             return dispatchers.on_error(code, err)
         end,
     }
@@ -198,6 +203,7 @@ function M.wrap_client_to_server(rpc, mappings, fn)
     ---@type vim.lsp.rpc.PublicClient
     return {
         request = function(method, params, callback, notify_reply_callback)
+            log.trace('client2server:request:%s', method)
             params = apply(params, fn, {
                 method = method,
                 direction = 'client2server',
@@ -205,18 +211,20 @@ function M.wrap_client_to_server(rpc, mappings, fn)
                 tree = mappings.request_params[method]
             })
             return rpc.request(method, params, function(err, result)
+                log.trace('client2server:response:%s', method)
                 if not err then
-            result = apply(result, fn, {
-                method = method,
-                direction = 'client2server',
-                type = 'request_result',
-                tree = mappings.request_result[method]
-            })
+                    result = apply(result, fn, {
+                        method = method,
+                        direction = 'server2client', -- reversed
+                        type = 'request_result',
+                        tree = mappings.request_result[method]
+                    })
                 end
                 return callback(err, result)
             end, notify_reply_callback)
         end,
         notify = function(method, params)
+            log.trace('client2server:notify:%s', method)
             params = apply(params, fn, {
                 method = method,
                 direction = 'client2server',
@@ -226,9 +234,11 @@ function M.wrap_client_to_server(rpc, mappings, fn)
             return rpc.notify(method, params)
         end,
         is_closing = function()
+            log.trace('client2server:is_closing')
             return rpc.is_closing()
         end,
         terminate = function()
+            log.trace('client2server:terminate')
             return rpc.terminate()
         end,
     }

@@ -57,12 +57,16 @@ end
 
 -- TODO: make proper cache
 ---@param container_id string
+---@return string container_name with a leading slash "/"
 local function get_container_name(container_id)
     local result = utils.system {'docker', 'inspect', container_id}
     local data = result.code == 0 and vim.json.decode(result.stdout)
     local name = data and #data == 1 and data[1].Name
     if not name then
         log.exception('Could not resolve container %s', container_id)
+    end
+    if not vim.startswith(name, '/') then
+        name = '/' .. name
     end
     return name
 end
@@ -73,7 +77,7 @@ local ensure_docker_handlers_loaded = utils.lazy(function()
     end
 
     -- try to load netman.nvim
-    -- utils.schedule_if_needed()
+    utils.schedule_if_needed()
     if pcall(require, 'netman') then
         return false
     end
@@ -127,7 +131,7 @@ function M.patch_config(config, workspace_dir)
                     ensure_docker_handlers_loaded()
                     local container_info = manager.get_container_info(workspace_dir)
                     local container_name = get_container_name(container_info.containerId)
-                    return string.format('docker://%s%s', container_name, vim.fs.abspath(path))
+                    return string.format('docker:/%s%s', container_name, vim.fs.abspath(path))
                 end
             elseif scheme == 'docker' then
                 if dir == 'server2client' then
