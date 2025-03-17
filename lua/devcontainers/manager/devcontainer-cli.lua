@@ -150,7 +150,7 @@ M.devcontainer_up = devcontainer_up
 
 ---@param workspace_dir string
 ---@param opts? devcontainer.ensure_up.opts
----@return devcontainer.up_status.success?
+---@return devcontainer.up_status.success|boolean
 function M.ensure_up(workspace_dir, opts)
     opts = opts or {}
     assert(coroutine.running())
@@ -160,7 +160,7 @@ function M.ensure_up(workspace_dir, opts)
     -- Check if container exists
     local echo = system(opts.test_cmd or { 'devcontainer', 'exec', '--workspace-folder', workspace_dir, 'echo' })
     if echo.code == 0 then
-        return
+        return true
     end
 
     -- Offer to start it
@@ -169,7 +169,7 @@ function M.ensure_up(workspace_dir, opts)
             prompt = string.format('Devcontainer for %s not running, start? [y/N]: ', short_dir()),
         }
         if not (input and vim.tbl_contains({'y', 'yes'}, input:lower())) then
-            return
+            return false
         end
     end
 
@@ -177,7 +177,7 @@ function M.ensure_up(workspace_dir, opts)
     -- local notif = vim.notify(string.format('Starting devcontainer in %s', workspace_dir))
     local result = devcontainer_up(workspace_dir)
 
-    return result.ok and result.status --[[@as devcontainer.up_status.success]] or nil
+    return result.ok and result.status --[[@as devcontainer.up_status.success]] or false
 
     -- if not result.ok then
     --     local msg = string.format('Starting devcontainer in %s: FAILED: code=%d status=%s', short_dir(), result.code, vim.inspect(result.status))
