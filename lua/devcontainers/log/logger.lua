@@ -6,6 +6,7 @@ local M = {}
 ---@field level? devcontainers.LogLevel
 ---@field path? string defaults to <stdpath-log>/<plugin_name>.log
 ---@field timestamp? string timestamp format used when logging to file
+---@field timestamp_append? 'ms'|'us' append milli-/microseconds after formatted timestamp
 
 --- Wrapper around vim.notify that also logs
 ---@class devcontainers.Logger.Notify
@@ -27,6 +28,8 @@ local M = {}
 ---@field level integer
 ---@field path string
 ---@field timestamp string
+---@field timestamp_ms boolean
+---@field timestamp_us boolean
 ---@field notify devcontainers.Logger.Notify
 ---@field trace fun(...)
 ---@field debug fun(...)
@@ -86,8 +89,17 @@ function Logger:_log(level, ...)
     end
 
     if self._fd then -- log if file is ok
-        local timestamp = os.date(self.timestamp, os.time())
-        local text = string.format('[%s | %s] %s%s\n', timestamp, self.level2name_upper[level], self.prefix, msg)
+        local sec, us = vim.uv.gettimeofday()
+        local timestamp = os.date(self.timestamp, sec)
+
+        local timestamp_append
+        if self.timestamp_ms then
+            timestamp_append = string.format('.%03d', math.floor(us / 1000))
+        elseif self.timestamp_us then
+            timestamp_append = string.format('.%06d', us)
+        end
+
+        local text = string.format('[%s%s|%s] %s%s\n', timestamp, timestamp_append or '', self.level2name_upper[level], self.prefix, msg)
         fsio.write(self._fd, text)
     end
 
@@ -113,6 +125,8 @@ function Logger:new(plugin_name, name, config)
         name = assert(name),
         level = assert(self.levels[config.level]),
         timestamp = assert(config.timestamp),
+        timestamp_ms = config.timestamp_append == 'ms',
+        timestamp_us = config.timestamp_append == 'us',
         path = assert(config.path),
     }, self)
 
@@ -160,6 +174,7 @@ end
 local default_config = {
     level = 'warn',
     timestamp = '%F %H:%M:%S',
+    timestamp_append = 'us',
 }
 
 ---@class devcontainers.LoggerRegistry: { [string]: devcontainers.Logger }
