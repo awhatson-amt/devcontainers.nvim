@@ -2,8 +2,6 @@ syn match logDelimiter '[:<>=@{},\[\].]'
 
 syn match logNumber '\<-\?\d\+\>'
 syn match logHexNumber '\<0[xX]\x\+\>'
-syn match logHexNumber '\<\x\{4,}\>'
-syn match logHexNumber '\<\x\{2}\>'
 syn match logBinNumber '\<0[bB][01]\+\>'
 syn match logFloatNumber '\<\d.\d\+[eE]\?\>'
 
@@ -14,7 +12,7 @@ syn keyword logNull NULL Null null nil
 
 syn match logHeader '^\[[^]]\+]' nextgroup=logModule
 
-syn match logTimestamp '\d+-\d+-\d+ \d+:\d+:\d+' containedin=logHeader
+syn match logTimestamp '\d\+-\d\+-\d\+ \d\+:\d\+:\d\+\(\.\d\+\)\?' containedin=logHeader
 
 syn match logTrace 'TRACE' containedin=logHeader
 syn match logDebug 'DEBUG' containedin=logHeader
@@ -50,3 +48,5 @@ hi def link logModule Special
 hi def link logVariableName Identifier
 
 hi def link logDelimiter Delimiter
+
+hi def link logTimestamp Number
