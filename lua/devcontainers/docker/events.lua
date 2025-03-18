@@ -2,7 +2,7 @@
 local M = {}
 
 local class = require('devcontainers.class')
-local log = require('devcontainers.log').docker_events
+local log = require('devcontainers.log')['docker.events']
 local utils = require('devcontainers.utils')
 
 ---@class devcontainers.docker.Event
@@ -107,7 +107,7 @@ end
 
 ---@param event devcontainers.docker.Event
 function EventListener:_on_event(event)
-    log.trace('event %s', utils.lazy_inspect(event))
+    log.trace('event %s', utils.lazy_inspect_oneline(event))
     for id, cb in pairs(self.subscribers) do
         local ok, err = pcall(cb, event)
         if not ok then

@@ -19,7 +19,7 @@ vim.api.nvim_create_autocmd({ 'BufNew', 'BufReadPre', 'BufReadPost', 'BufAdd' },
     pattern = 'docker://*',
     callback = function(args)
         local log = require('devcontainers.log').plugin
-        log.debug('%s: buf=%s', args.event, args.buf)
+        log.trace('%s matched docker:// for buf=%s', args.event, args.buf)
         if args.event == 'BufNew' then
             vim.bo[args.buf].buftype = 'nofile'
         elseif args.event == 'BufAdd' then

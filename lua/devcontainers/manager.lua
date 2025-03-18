@@ -1,9 +1,9 @@
 local M = {}
 
-local devcontainer_cli = require('devcontainers.manager.devcontainer-cli')
+local cli = require('devcontainers.cli')
 local log = require('devcontainers.log').manager
 local utils = require('devcontainers.utils')
-local cache = require('devcontainers.manager.cache')
+local cache = require('devcontainers.cache')
 
 ---@class devcontainer.ensure_up.opts
 ---@field confirm? boolean ask before starting devcontainer
@@ -31,10 +31,51 @@ function M.is_workspace_dir(dir)
     return vim.uv.fs_stat(vim.fs.joinpath(dir, '.devcontainer')) ~= nil
 end
 
---- Check if a container is already running, if not then spawn it
+---@async
 ---@param workspace_dir string
 ---@param opts? devcontainer.ensure_up.opts
----@return devcontainer.up_status.success?
+---@return devcontainer.cache.Entry|false
+local function ensure_up(workspace_dir, opts)
+    opts = opts or {}
+    assert(coroutine.running())
+
+    local short_dir = utils.bind(utils.lazy(vim.fn.pathshorten), workspace_dir)
+
+    -- If we already have this information then the container has already been started
+    local cached = cache.check(workspace_dir)
+    if cached then
+        return cached
+    end
+
+    -- Check if container exists
+    if not cli.container_is_running(workspace_dir) then
+        -- Offer to start it or proceed without asking
+        if opts.confirm then
+            local input = utils.ui_input {
+                prompt = string.format('Devcontainer for %s not running, start? [y/N]: ', short_dir()),
+            }
+            if not (input and vim.tbl_contains({'y', 'yes'}, input:lower())) then
+                return false
+            end
+        end
+    end
+
+    -- Start the devcontainer
+    local result = cli.devcontainer_up(workspace_dir)
+
+    if result.ok then
+        -- Fetch the rest of information avoiding repeating devcontainer-up
+        return cache.fetch(workspace_dir, { up = result.status --[[@as devcontainer.up_status.success]] })
+    else
+        return false
+    end
+end
+
+--- Check if a container is already running, if not then spawn it
+---@async
+---@param workspace_dir string
+---@param opts? devcontainer.ensure_up.opts
+---@return devcontainer.cache.Entry|false
 function M.ensure_up(workspace_dir, opts)
     opts = opts or {}
     assert(coroutine.running())
@@ -45,7 +86,7 @@ function M.ensure_up(workspace_dir, opts)
 
         -- Run the operation in separate thread
         start = coroutine.wrap(function()
-            local result = devcontainer_cli.ensure_up(workspace_dir, opts)
+            local result = ensure_up(workspace_dir, opts)
             utils.schedule()
 
             -- Resume all pending coroutines
@@ -66,25 +107,6 @@ function M.ensure_up(workspace_dir, opts)
         start()
     end
     return coroutine.yield()
-end
-
---- Get path to workspace folder inside the container
----@param workspace_dir string host directory for which the devcontainer runs
-function M.get_workspace_folder(workspace_dir)
-    -- Try to re-use information from running container
-    local cached_info = rawget(cache.container, workspace_dir)
-    if cached_info then
-        assert(cached_info.remoteWorkspaceFolder)
-        log.trace('Returing workspace_dir from cache: %s => %s', workspace_dir, cached_info.remoteWorkspaceFolder)
-        return cached_info.remoteWorkspaceFolder
-    end
-    return cache.configuration[workspace_dir].workspaceFolder
-end
-
----@param workspace_dir string
----@return devcontainer.up_status.success
-function M.get_container_info(workspace_dir)
-    return cache.container[workspace_dir]
 end
 
 return M

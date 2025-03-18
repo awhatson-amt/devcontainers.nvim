@@ -1,15 +1,11 @@
 local M = {}
 
 local utils = require('devcontainers.utils')
-local log = require('devcontainers.log')['devcontainer-cli']
-
-local system = utils.timed(utils.system, function(time_ms, cmd, _opts)
-    log.trace('Command took %.3f ms: %s', time_ms, table.concat(cmd, ' '))
-end)
+local log = require('devcontainers.log').cli
 
 -- TODO: use this at least in health check
 M.is_supported = utils.lazy(function()
-    local result = system({ 'devcontainer', '--version' })
+    local result = utils.system({ 'devcontainer', '--version' })
     if result.code == 0 and #result.stdout > 0 then
         log.debug('Found devcontainer-cli version %s', result.stdout)
         return true
@@ -73,18 +69,57 @@ local function overseer_task(cmd, opts)
     }
 end
 
---- TODO: order of insertion should be reflected when getting command
----@type table<string, fun(workspace_dir: string): (string[]|nil)>
-M._up_cmd_overrides = {}
+--- Should return the command override if workspace_dir matches, otherwise return nil
+---@alias devcontainer.cli.CmdOverrideFn fun(workspace_dir: string, subcommand: string, ...): (string[]|nil)
 
-local function devcontainer_up_cmd(workspace_dir)
-    for _, getter in pairs(M._up_cmd_overrides) do
-        local cmd = getter(workspace_dir)
+---@class devcontainer.cli.CmdOverride
+---@field id string
+---@field fn devcontainer.cli.CmdOverrideFn
+---@field priority number
+
+---@type table<string, devcontainer.cli.CmdOverride>
+local overrides_by_id = {}
+
+---@type devcontainer.cli.CmdOverride[]
+local overrides_sorted = {}
+
+---@param id string
+---@param fn devcontainer.cli.CmdOverrideFn
+---@param priority? number defaults to 0
+function M.register_cmd_override(id, fn, priority)
+    assert(not overrides_by_id[id])
+    local entry = { id = id, fn = fn, priority = vim.F.if_nil(priority, 0) }
+    overrides_by_id[id] = entry
+    table.insert(overrides_sorted, entry)
+    -- sort from highest to lowest priority
+    table.sort(overrides_sorted, function(a, b)
+        return a.priority > b.priority
+    end)
+end
+
+---@param id string
+function M.clear_cmd_override(id)
+    overrides_by_id[id] = nil
+    for i, entry in ipairs(overrides_sorted) do
+        if entry.id == id then
+            table.remove(overrides_sorted, i)
+            return
+        end
+    end
+end
+
+---@param workspace_dir string
+---@param subcommand string
+---@vararg string
+---@return string[]
+function M.cmd(workspace_dir, subcommand, ...)
+    for _, override in ipairs(overrides_sorted) do
+        local cmd = override.fn(workspace_dir, subcommand, ...)
         if cmd then
             return cmd
         end
     end
-    return { 'devcontainer', 'up', '--workspace-folder', workspace_dir }
+    return { 'devcontainer', subcommand, '--workspace-folder', workspace_dir, ... }
 end
 
 ---@param out vim.SystemCompleted
@@ -104,8 +139,8 @@ end
 
 ---@param workspace_dir string
 ---@return { ok: boolean, error?: string, code: integer, status?: devcontainer.up_status }
-local function devcontainer_up(workspace_dir)
-    local cmd = devcontainer_up_cmd(workspace_dir)
+function M.devcontainer_up(workspace_dir)
+    local cmd = M.cmd(workspace_dir, 'up')
     local ret
     -- TODO: refactor task management into single interface with multiple backends
     if vim.F.npcall(require, 'overseer') then
@@ -120,7 +155,7 @@ local function devcontainer_up(workspace_dir)
     else
         local short_dir = vim.fn.pathshorten(workspace_dir)
         local notif = vim.notify(string.format('Starting devcontainer in %s', short_dir))
-        local result = system(cmd)
+        local result = utils.system(cmd)
         local ok, status = up_status(result)
         ret = {
             ok = ok,
@@ -136,78 +171,46 @@ local function devcontainer_up(workspace_dir)
             vim.notify(msg, nil, { replace = notif and notif.id })
         end
     end
-    if ret.ok then
-        require('devcontainers.manager.cache').container[workspace_dir] = ret.status --[[@as devcontainer.up_status.success]]
-    end
     return ret
 end
 
-devcontainer_up = utils.timed(devcontainer_up, function(time_us, workspace_dir)
-    log.trace('devcontainer-up took %.3f ms: workspaceDir=%s', time_us, workspace_dir)
-end)
+---@class devcontainer.cli.Config
+---@field workspace devcontainer.cli.Config.workspace
+---@field configuration devcontainer.cli.Config.configuration
 
-M.devcontainer_up = devcontainer_up
+---@class devcontainer.cli.Config.workspace
+---@field workspaceFolder string
+---@field workspaceMount string
+
+---@class devcontainer.cli.Config.configuration: table
+---@field configFilePath { fsPath: string, path: string, scheme: string }
 
 ---@param workspace_dir string
----@param opts? devcontainer.ensure_up.opts
----@return devcontainer.up_status.success|boolean
-function M.ensure_up(workspace_dir, opts)
-    opts = opts or {}
-    assert(coroutine.running())
-
-    local short_dir = utils.bind(utils.lazy(vim.fn.pathshorten), workspace_dir)
-
-    -- If we already have this information then the container has already been started
-    if rawget(require('devcontainers.manager.cache').container, workspace_dir) then
-        return rawget(require('devcontainers.manager.cache').container, workspace_dir)
+---@return devcontainer.cli.Config
+function M.read_configuration(workspace_dir)
+    local result = utils.system(M.cmd(workspace_dir, 'read-configuration'))
+    if result.code ~= 0 then
+        log.exception('read-configuration failed for %s: %s', workspace_dir, result.stderr)
     end
-
-    -- Check if container exists
-    local echo = system(opts.test_cmd or { 'devcontainer', 'exec', '--workspace-folder', workspace_dir, 'echo' })
-    if echo.code ~= 0 then
-        -- Offer to start it
-        if opts.confirm then
-            local input = utils.ui_input {
-                prompt = string.format('Devcontainer for %s not running, start? [y/N]: ', short_dir()),
-            }
-            if not (input and vim.tbl_contains({'y', 'yes'}, input:lower())) then
-                return false
-            end
-        end
-    end
-
-    -- Start the devcontainer
-    -- local notif = vim.notify(string.format('Starting devcontainer in %s', workspace_dir))
-    local result = devcontainer_up(workspace_dir)
-
-    return result.ok and result.status --[[@as devcontainer.up_status.success]] or false
-
-    -- if not result.ok then
-    --     local msg = string.format('Starting devcontainer in %s: FAILED: code=%d status=%s', short_dir(), result.code, vim.inspect(result.status))
-    --     vim.notify(msg, nil, { replace = notif and notif.id })
-    --     return
-    -- end
-    --
-    -- local msg = string.format('Starting devcontainer in %s: OK', workspace_dir)
-    -- vim.notify(msg, nil, { replace = notif and notif.id })
-    -- return result.status --[[@as devcontainer.up_status.success]]
+    return assert(vim.json.decode(result.stdout))
 end
 
 ---@param workspace_dir string
----@return { workspaceFolder: string }
-function M.get_configuration(workspace_dir)
-    log.trace('Getting configuration for: %s', workspace_dir)
-
-    local result = system { 'devcontainer', 'read-configuration', '--workspace-folder', workspace_dir }
+---@param cmd string[]
+---@return { stdout: string, stderr: string }
+function M.exec(workspace_dir, cmd)
+    local result = utils.system(M.cmd(workspace_dir, 'exec', unpack(cmd)))
     if result.code ~= 0 then
-        error(result.stderr)
+        log.exception('exec failed for %s: %s', workspace_dir, result.stderr)
     end
+    return { stdout = result.stdout, stderr = result.stderr }
+end
 
-    local config = assert(vim.json.decode(result.stdout))
-
-    return {
-        workspaceFolder = assert(config.workspace.workspaceFolder, 'Missing .workspace.workspaceFolder'),
-    }
+---@param workspace_dir string
+---@return boolean
+function M.container_is_running(workspace_dir)
+    local ok = pcall(M.exec, workspace_dir, 'echo')
+    return ok
 end
 
 return M

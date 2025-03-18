@@ -104,20 +104,12 @@ function M.lazy_inspect(value, opts)
     return M.lazy_tostring(vim.inspect, value, opts)
 end
 
---- Sync wrapper for vim.system that uses coroutine resume if running in a coroutine
----@param cmd string[] Command to execute
----@param opts vim.SystemOpts? Options:
----@return vim.SystemCompleted
-function M.system(cmd, opts)
-    if coroutine.running() then
-        local resume = M.coroutine_resume()
-        vim.system(cmd, opts, resume)
-        local result = vim.F.pack_len(coroutine.yield())
-        M.schedule_if_needed()
-        return vim.F.unpack_len(result)
-    else
-        return vim.system(cmd, opts):wait()
-    end
+local inspect_oneline = { newline = ' ', indent = '' }
+
+---@param value any
+---@param opts? vim.inspect.Opts
+function M.lazy_inspect_oneline(value, opts)
+    return M.lazy_inspect(value, opts and vim.tbl_extend('error', inspect_oneline, opts) or inspect_oneline)
 end
 
 ---@generic T
@@ -137,6 +129,27 @@ function M.timed(fn, on_time_ms)
         return unpack(ret, 2)
     end
 end
+
+--- Sync wrapper for vim.system that uses coroutine resume if running in a coroutine
+---@param cmd string[] Command to execute
+---@param opts vim.SystemOpts? Options:
+---@return vim.SystemCompleted
+function M._system(cmd, opts)
+    if coroutine.running() then
+        local resume = M.coroutine_resume()
+        vim.system(cmd, opts, resume)
+        local result = vim.F.pack_len(coroutine.yield())
+        M.schedule_if_needed()
+        return vim.F.unpack_len(result)
+    else
+        return vim.system(cmd, opts):wait()
+    end
+end
+
+M.system = M.timed(M._system, function(time_ms, cmd, _opts)
+    local log = require('devcontainers.log')()
+    log.trace('Command took %.3f ms: %s', time_ms, table.concat(cmd, ' '))
+end)
 
 -- Not really needed right know
 -- local function freeze(tbl)

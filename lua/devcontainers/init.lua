@@ -1,5 +1,9 @@
 local M = {}
 
+function M.setup()
+    -- TODO: config
+end
+
 function M.on_new_config(config, root_dir)
     local manager = require('devcontainers.manager')
     local utils = require('devcontainers.utils')
@@ -28,7 +32,7 @@ function M.on_new_config(config, root_dir)
 
     -- Update command to start in devcontainer
     config.cmd = vim.list_extend({ 'devcontainer', 'exec', '--workspace-folder', root_dir }, config.cmd)
-    log.trace('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect(config.cmd))
+    log.trace('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
 
     -- Setup path mappings
     require('devcontainers.paths').patch_config(config, root_dir)

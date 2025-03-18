@@ -1,9 +1,9 @@
 local M = {}
 
 local utils = require('devcontainers.utils')
-local rpc = require('devcontainers.lsp.rpc_mapping')
+local rpc = require('devcontainers.lsp.rpc')
 local log = require('devcontainers.log').paths
-local manager = require('devcontainers.manager')
+local cache = require('devcontainers.cache')
 
 local URI_SCHEME_PATTERN = '^([a-zA-Z]+[a-zA-Z0-9.+-]*):.*'
 -- -- file://host/path
@@ -55,22 +55,6 @@ end
 --- List of tuples (from, to), first has highest priority
 ---@alias devcontainer.PathMappings { [1]: string, [2]: string }[]
 
--- TODO: make proper cache
----@param container_id string
----@return string container_name with a leading slash "/"
-local function get_container_name(container_id)
-    local result = utils.system {'docker', 'inspect', container_id}
-    local data = result.code == 0 and vim.json.decode(result.stdout)
-    local name = data and #data == 1 and data[1].Name
-    if not name then
-        log.exception('Could not resolve container %s', container_id)
-    end
-    if not vim.startswith(name, '/') then
-        name = '/' .. name
-    end
-    return name
-end
-
 local ensure_docker_handlers_loaded = utils.lazy(function()
     if package.loaded['netman'] then -- ok, netman.nvim available
         return false
@@ -95,15 +79,15 @@ end)
 ---@param config vim.lsp.ClientConfig
 ---@param workspace_dir string
 function M.patch_config(config, workspace_dir)
-    local container_dir = manager.get_workspace_folder(workspace_dir)
+    local info = cache.get(workspace_dir)
 
     ---@type devcontainers.rpc.PerDirection<devcontainer.PathMappings>
     local path_mappings = {
         server2client = {
-            { container_dir, workspace_dir },
+            { info.remote_dir, workspace_dir },
         },
         client2server = {
-            { workspace_dir, container_dir },
+            { workspace_dir, info.remote_dir },
         },
     }
 
@@ -129,8 +113,11 @@ function M.patch_config(config, workspace_dir)
                 else -- server2client
                     -- fall back to docker URIs translation
                     ensure_docker_handlers_loaded()
-                    local container_info = manager.get_container_info(workspace_dir)
-                    local container_name = get_container_name(container_info.containerId)
+                    local container_name = info.container_name
+                    if not vim.startswith(container_name, '/') then
+                        log.warn('Container name does not start with "/" (adding): %s', container_name)
+                        container_name = '/' .. container_name
+                    end
                     return string.format('docker:/%s%s', container_name, vim.fs.abspath(path))
                 end
             elseif scheme == 'docker' then
