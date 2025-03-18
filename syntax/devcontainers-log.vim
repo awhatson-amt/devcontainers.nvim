@@ -1,8 +1,4 @@
-syn match logDelimiter '[:<>=@]'
-
-syn region logString start=/"/ end=/"/ end=/$/ skip=/\\./
-" Quoted strings, but no match on quotes like "don't", "plurals' elements"
-syn region logString start=/'\(s \|t \| \w\)\@!/ end=/'/ end=/$/ end=/s / skip=/\\./
+syn match logDelimiter '[:<>=@{},\[\].]'
 
 syn match logNumber '\<-\?\d\+\>'
 syn match logHexNumber '\<0[xX]\x\+\>'
@@ -14,11 +10,9 @@ syn match logFloatNumber '\<\d.\d\+[eE]\?\>'
 syn match logPercent '\<\d\{,2}\(\.\d\+\)\?%'
 
 syn keyword logBool TRUE FALSE True False true false
-syn keyword logNull NULL Null null
+syn keyword logNull NULL Null null nil
 
-syn match logPath '[/a-zA-Z0-9.-_]*/[/a-zA-Z0-9.-_]\+\>'
-
-syn match logHeader '\[[^]]\+]' nextgroup=logModule
+syn match logHeader '^\[[^]]\+]' nextgroup=logModule
 
 syn match logTimestamp '\d+-\d+-\d+ \d+:\d+:\d+' containedin=logHeader
 
@@ -28,14 +22,11 @@ syn match logInfo 'INFO' containedin=logHeader
 syn match logWarn 'WARN' containedin=logHeader
 syn match logError 'ERROR' containedin=logHeader
 
-syn region logVariable start=/\%(\w\+=\)\@=/ end=/\s\@=/ contains=logVariableName
-syn match logVariableName '\w\+=' contains=logDelimiter
+syn region logString start=/"/ end=/"/ end=/$/ skip=/\\./
+" Quoted strings, but no match on quotes like "don't", "plurals' elements"
+syn region logString start=/'\(s \|t \| \w\)\@!/ end=/'/ end=/$/ end=/s / skip=/\\./
 
 syn match logModule / [^:]\+:/ contained
-
-" hide ^M at end of lines with \r\n
-syn match logCR '\r\n' conceal
-" syn match logCR '\r\n' conceal cchar=↴
 
 hi def link logNumber Number
 hi def link logHexNumber Number
