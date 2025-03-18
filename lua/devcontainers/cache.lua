@@ -28,7 +28,7 @@ local function fetch(workspace_dir, partial_results)
 
     local up = partial_results.up
     if not up then
-        log.trace('Running "devcontainer up" ...')
+        log.debug('Running "devcontainer up" ...')
         local result = cli.devcontainer_up(workspace_dir)
         if not result.ok then
             log.exception('devcontainer up failed: %s', result.error)
@@ -38,13 +38,13 @@ local function fetch(workspace_dir, partial_results)
 
     local read_configuration = partial_results.read_configuration
     if not read_configuration then
-        log.trace('Running "devcontainer read-configuration" ...')
+        log.debug('Running "devcontainer read-configuration" ...')
         read_configuration = cli.read_configuration(workspace_dir)
     end
 
     local inspect = partial_results.inspect
     if not inspect then
-        log.trace('Running "docker inspect" ...')
+        log.debug('Running "docker inspect" ...')
         inspect = docker.inspect(up.containerId)
     end
 
@@ -96,7 +96,7 @@ function M.fetch(workspace_dir, partial_results)
 end
 
 function M.clear(workspace_dir)
-    log.trace('clear: %s', workspace_dir)
+    log.debug('clear: %s', workspace_dir)
     cache[workspace_dir] = nil
 end
 

@@ -185,11 +185,11 @@ function M.wrap_server_to_client(dispatchers, mappings, fn)
             return result, err
         end,
         on_exit = function(code, signal)
-            log.trace('server2client:on_exit: code=%s signal=%s', code, signal)
+            log.debug('server2client:on_exit: code=%s signal=%s', code, signal)
             return dispatchers.on_exit(code, signal)
         end,
         on_error = function(code, err)
-            log.trace('server2client:on_error: code=%s err=%s', code, err)
+            log.debug('server2client:on_error: code=%s err=%s', code, err)
             return dispatchers.on_error(code, err)
         end,
     }
@@ -234,11 +234,11 @@ function M.wrap_client_to_server(rpc, mappings, fn)
             return rpc.notify(method, params)
         end,
         is_closing = function()
-            log.trace('client2server:is_closing')
+            log.debug('client2server:is_closing')
             return rpc.is_closing()
         end,
         terminate = function()
-            log.trace('client2server:terminate')
+            log.debug('client2server:terminate')
             return rpc.terminate()
         end,
     }

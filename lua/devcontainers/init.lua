@@ -7,10 +7,11 @@ end
 function M.on_new_config(config, root_dir)
     local manager = require('devcontainers.manager')
     local utils = require('devcontainers.utils')
+    local cli = require('devcontainers.cli')
     local log = require('devcontainers.log')()
 
     if not manager.is_workspace_dir(root_dir) then
-        log.trace('on_new_config(%s): not a workspace dir: %s', config.name, root_dir)
+        log.debug('on_new_config(%s): not a workspace dir: %s', config.name, root_dir)
         return
     end
 
@@ -31,12 +32,12 @@ function M.on_new_config(config, root_dir)
     end
 
     -- Update command to start in devcontainer
-    config.cmd = vim.list_extend({ 'devcontainer', 'exec', '--workspace-folder', root_dir }, config.cmd)
-    log.trace('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
+    config.cmd = cli.cmd(root_dir, 'exec', unpack(config.cmd))
+    log.debug('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
 
     -- Setup path mappings
     require('devcontainers.paths').patch_config(config, root_dir)
-    log.trace('on_new_config(%s): added path translation', config.name)
+    log.debug('on_new_config(%s): added path translation', config.name)
 end
 
 return M
