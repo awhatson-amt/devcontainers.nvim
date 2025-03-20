@@ -132,7 +132,7 @@ end
 
 --- Sync wrapper for vim.system that uses coroutine resume if running in a coroutine
 ---@param cmd string[] Command to execute
----@param opts vim.SystemOpts? Options:
+---@param opts? vim.SystemOpts
 ---@return vim.SystemCompleted
 function M._system(cmd, opts)
     if coroutine.running() then

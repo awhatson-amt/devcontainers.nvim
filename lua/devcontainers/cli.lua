@@ -197,9 +197,10 @@ end
 
 ---@param workspace_dir string
 ---@param cmd string[]
+---@param opts? vim.SystemOpts
 ---@return { stdout: string, stderr: string }
-function M.exec(workspace_dir, cmd)
-    local result = utils.system(M.cmd(workspace_dir, 'exec', unpack(cmd)))
+function M.exec(workspace_dir, cmd, opts)
+    local result = utils.system(M.cmd(workspace_dir, 'exec', unpack(cmd)), opts)
     if result.code ~= 0 then
         log.exception('exec failed for %s: %s', workspace_dir, result.stderr)
     end

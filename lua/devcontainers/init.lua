@@ -31,6 +31,17 @@ function M.on_new_config(config, root_dir)
         return
     end
 
+    -- Test whether this server can even be started inside devcontainer, otherwise leave the config as-is
+    -- TODO: make the test configurable, allow users to exclude/include certain LSPs
+    local test_cmd = vim.list_slice(config.cmd)
+    table.insert(test_cmd, '--help')
+    log.trace('Testing %s LSP in devcontainer "%s" with cmd: %s', config.name, root_dir, utils.lazy_inspect_oneline(test_cmd))
+    local ok = pcall(cli.exec, root_dir, test_cmd, { timeout = 3000 })
+    if not ok then
+        log.error('Could not start %s LSP in devcontainer, falling back to local: %s', config.name, root_dir)
+        return
+    end
+
     -- Update command to start in devcontainer
     config.cmd = cli.cmd(root_dir, 'exec', unpack(config.cmd))
     log.debug('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
