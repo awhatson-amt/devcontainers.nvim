@@ -50,7 +50,9 @@ end
 function Or:apply(fn, value)
     for _, node in ipairs(self.nodes) do
         if node:matches(value) then
-            return node:apply(fn, value)
+            -- FIXME: tree merging is not 100% correct making Or sometimes miss valid paths, for now using All logic
+            -- return node:apply(fn, value)
+            value = node:apply(fn, value)
         end
     end
     return value
