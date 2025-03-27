@@ -31,6 +31,15 @@ function M.on_new_config(config, root_dir)
         return
     end
 
+    if vim.env.MASON and vim.startswith(config.cmd[1], vim.env.MASON) then
+        local mason_prefix = vim.fs.joinpath(vim.env.MASON, 'bin')
+        if vim.startswith(config.cmd[1], mason_prefix) then
+            local cmd = config.cmd[1]
+            config.cmd[1] = vim.fs.relpath(mason_prefix, cmd)
+            log.debug('Removing MASON prefix: "%s" => "%s"', cmd, config.cmd[1])
+        end
+    end
+
     -- Test whether this server can even be started inside devcontainer, otherwise leave the config as-is
     -- TODO: make the test configurable, allow users to exclude/include certain LSPs
     local test_cmd = vim.list_slice(config.cmd)
