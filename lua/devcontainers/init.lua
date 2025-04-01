@@ -10,6 +10,8 @@ function M.on_new_config(config, root_dir)
     local cli = require('devcontainers.cli')
     local log = require('devcontainers.log')()
 
+    log.trace('on_new_config(%s): root_dir=%s, cmd=%s, cmd_env=%s', config.name, root_dir, utils.lazy_inspect_oneline(config.cmd), utils.lazy_inspect_oneline(config.cmd_env))
+
     if not manager.is_workspace_dir(root_dir) then
         log.debug('on_new_config(%s): not a workspace dir: %s', config.name, root_dir)
         return
@@ -31,14 +33,9 @@ function M.on_new_config(config, root_dir)
         return
     end
 
-    if vim.env.MASON and vim.startswith(config.cmd[1], vim.env.MASON) then
-        local mason_prefix = vim.fs.joinpath(vim.env.MASON, 'bin')
-        if vim.startswith(config.cmd[1], mason_prefix) then
-            local cmd = config.cmd[1]
-            config.cmd[1] = vim.fs.relpath(mason_prefix, cmd)
-            log.debug('Removing MASON prefix: "%s" => "%s"', cmd, config.cmd[1])
-        end
-    end
+    -- Un-sanitize command.
+    -- nvim-lspconfig calls vim.fn.exepath on cmd[1], but in devcontainer we want to use what is available in PATH.
+    config.cmd[1] = vim.fs.basename(config.cmd[1])
 
     -- Test whether this server can even be started inside devcontainer, otherwise leave the config as-is
     -- TODO: make the test configurable, allow users to exclude/include certain LSPs
