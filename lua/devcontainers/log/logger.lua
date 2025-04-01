@@ -7,6 +7,7 @@ local M = {}
 ---@field path? string defaults to <stdpath-log>/<plugin_name>.log
 ---@field timestamp? string timestamp format used when logging to file
 ---@field timestamp_append? 'ms'|'us' append milli-/microseconds after formatted timestamp
+---@field max_length? integer trim messages longer than given length
 
 --- Wrapper around vim.notify that also logs
 ---@class devcontainers.Logger.Notify
@@ -30,6 +31,7 @@ local M = {}
 ---@field timestamp string
 ---@field timestamp_ms boolean
 ---@field timestamp_us boolean
+---@field max_length integer
 ---@field notify devcontainers.Logger.Notify
 ---@field trace fun(...)
 ---@field debug fun(...)
@@ -81,6 +83,10 @@ function Logger:_log(level, ...)
     -- Avoid calling string.format if there are no format args
     local msg = assert(n == 1 and select(1, ...) or string.format(...))
 
+    if #msg > self.max_length then
+        msg = string.format('%s…', msg:sub(1, self.max_length - 1))
+    end
+
     local fsio = require('devcontainers.log.fsio')
 
     if self._file_ok == nil then -- lazy open file
@@ -127,6 +133,7 @@ function Logger:new(plugin_name, name, config)
         timestamp = assert(config.timestamp),
         timestamp_ms = config.timestamp_append == 'ms',
         timestamp_us = config.timestamp_append == 'us',
+        max_length = config.max_length,
         path = assert(config.path),
     }, self)
 
@@ -175,6 +182,7 @@ local default_config = {
     level = 'warn',
     timestamp = '%F %H:%M:%S',
     timestamp_append = 'us',
+    max_length = 512,
 }
 
 ---@class devcontainers.LoggerRegistry: { [string]: devcontainers.Logger }
