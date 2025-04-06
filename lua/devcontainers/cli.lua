@@ -1,11 +1,12 @@
 local M = {}
 
+local config = require('devcontainers.config')
 local utils = require('devcontainers.utils')
 local log = require('devcontainers.log').cli
 
 -- TODO: use this at least in health check
 M.is_supported = utils.lazy(function()
-    local result = utils.system({ 'devcontainer', '--version' })
+    local result = utils.system(utils.flatten(config.devcontainers_cli_cmd, '--version'))
     if result.code == 0 and #result.stdout > 0 then
         log.debug('Found devcontainer-cli version %s', result.stdout)
         return true
@@ -119,7 +120,7 @@ function M.cmd(workspace_dir, subcommand, ...)
             return cmd
         end
     end
-    return { 'devcontainer', subcommand, '--workspace-folder', workspace_dir, ... }
+    return utils.flatten(config.devcontainers_cli_cmd, subcommand, '--workspace-folder', workspace_dir, ...)
 end
 
 ---@param out vim.SystemCompleted

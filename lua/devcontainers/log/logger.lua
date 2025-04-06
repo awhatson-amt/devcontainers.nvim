@@ -188,6 +188,9 @@ local default_config = {
 ---@class devcontainers.LoggerRegistry: { [string]: devcontainers.Logger }
 ---@overload fun(name?: string): devcontainers.Logger
 
+---@type table<string, devcontainers.Logger>
+M.loggers = setmetatable({}, { __mode = 'v' })
+
 ---@param plugin_name string
 ---@param config? devcontainers.Logger.Config
 ---@return devcontainers.LoggerRegistry
@@ -199,7 +202,10 @@ function M.make_registry(plugin_name, config)
     }, config or {})
     return setmetatable({}, {
         __index = function(t, name)
-            t[name] = Logger:new(plugin_name, name, config)
+            local logger = Logger:new(plugin_name, name, config)
+            local key = name ~= '' and string.format('%s.%s', plugin_name, name) or plugin_name
+            M.loggers[key] = logger
+            t[name] = logger
             return assert(rawget(t, name))
         end,
         __call = function(t, name)

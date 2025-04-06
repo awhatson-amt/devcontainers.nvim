@@ -2,6 +2,7 @@
 local M = {}
 
 local class = require('devcontainers.class')
+local config = require('devcontainers.config')
 local log = require('devcontainers.log')['docker.events']
 local utils = require('devcontainers.utils')
 
@@ -35,7 +36,8 @@ local SIG = {
 
 ---@type fun(): boolean
 M.is_supported = utils.lazy(function()
-    local ret = vim.system({'docker', 'events', '--help'}):wait()
+    local cmd = utils.flatten(config.docker_cmd, 'events', '--help')
+    local ret = vim.system(cmd):wait()
     local supported = ret.code == 0
     if not supported then
         log.notify.warn('`docker events` not supported')
@@ -63,7 +65,7 @@ end
 
 function EventListener:restart()
     self:_kill()
-    local cmd = {'docker', 'events', '--format', 'json'}
+    local cmd = utils.flatten(config.docker_cmd, 'events', '--format', 'json')
     local on_stdout = vim.schedule_wrap(function(err, data)
         self:_on_stdout(err, data)
     end)

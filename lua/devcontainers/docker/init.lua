@@ -1,5 +1,6 @@
 local M = {}
 
+local config = require('devcontainers.config')
 local utils = require('devcontainers.utils')
 local log = require('devcontainers.log').docker
 
@@ -15,7 +16,8 @@ local log = require('devcontainers.log').docker
 ---@param name_or_id string
 ---@return devcontainer.docker.Inspect
 function M.inspect(name_or_id)
-    local result = utils.system {'docker', 'inspect', '--format', 'json', name_or_id}
+    local cmd = utils.flatten(config.docker_cmd, 'inspect', '--format', 'json', name_or_id)
+    local result = utils.system(cmd)
     if result.code ~= 0 then
         log.exception('docker inspect failed for %s: %s', name_or_id, result.stderr)
     end

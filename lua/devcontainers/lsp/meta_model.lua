@@ -1,6 +1,6 @@
 local M = {}
 
-M.version = '3.17'
+local config = require('devcontainers.config')
 
 ---@param path string
 ---@return string data
@@ -34,7 +34,7 @@ end
 
 ---@param version? string
 function M.get_url(version)
-    version = version or M.version
+    version = version or config.lsp_version
     return string.format('https://microsoft.github.io/language-server-protocol/specifications/lsp/%s/metaModel/metaModel.json', version)
 end
 
@@ -58,7 +58,7 @@ end
 ---@param no_cache? boolean
 ---@return LspMetaModel.Model
 function M.load(version, no_cache)
-    version = version or M.version
+    version = version or config.lsp_version
 
     local cache_dir = vim.fn.stdpath('cache')
     ---@cast cache_dir string

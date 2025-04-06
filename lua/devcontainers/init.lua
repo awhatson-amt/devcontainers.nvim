@@ -1,9 +1,19 @@
 local M = {}
 
-function M.setup()
-    -- TODO: config
+---@param opts? devcontainers.Config
+function M.setup(opts)
+    opts = opts or {}
+    require('devcontainers.config').setup(opts)
 end
 
+--- Handler for lspconfig on_new_config callback to start LSP client in devcontainer.
+---
+--- This will check whether the devcontainers.json exists and will try to start the container.
+--- If the container starts, the client configuration will be updated to run inside the container
+--- with proper path mapping for all RPC communication.
+---
+---@param config vim.lsp.ClientConfig
+---@param root_dir string
 function M.on_new_config(config, root_dir)
     local manager = require('devcontainers.manager')
     local utils = require('devcontainers.utils')

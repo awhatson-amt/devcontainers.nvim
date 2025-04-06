@@ -1,5 +1,11 @@
 local M = {}
 
+---@vararg table
+---@return table
+function M.flatten(...)
+    return vim.iter({ ... }):flatten(math.huge):totable()
+end
+
 function M.bind(fn, ...)
     local args = { ... }
     return function(...)
