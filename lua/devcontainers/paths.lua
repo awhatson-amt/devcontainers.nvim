@@ -4,6 +4,9 @@ local utils = require('devcontainers.utils')
 local rpc = require('devcontainers.lsp.rpc')
 local log = require('devcontainers.log').paths
 local cache = require('devcontainers.cache')
+local docker = require('devcontainers.docker')
+
+local augroup = vim.api.nvim_create_augroup('devcontainers.paths', { clear = true })
 
 local URI_SCHEME_PATTERN = '^([a-zA-Z]+[a-zA-Z0-9.+-]*):.*'
 -- -- file://host/path
@@ -76,9 +79,9 @@ local ensure_docker_handlers_loaded = utils.lazy(function()
     return true
 end)
 
----@param config vim.lsp.ClientConfig
 ---@param workspace_dir string
-function M.patch_config(config, workspace_dir)
+---@return table<string, fun(path: string): string?>
+local function make_path_mappers(workspace_dir)
     local info = cache.get(workspace_dir)
 
     ---@type devcontainers.rpc.PerDirection<devcontainer.PathMappings>
@@ -91,15 +94,17 @@ function M.patch_config(config, workspace_dir)
         },
     }
 
+
+    ---@type table<string, fun(path: string): string?>
     local mappers = {}
 
-    for dir, _ in pairs(path_mappings) do
+    for dir, dir_mappings in pairs(path_mappings) do
         mappers[dir] = function(uri)
             local scheme = assert(uri:match(URI_SCHEME_PATTERN), 'URI without scheme')
 
             if scheme == 'file' then
+                -- Try to find matching path mapping and return the path with the remapped prefix
                 local path = vim.uri_to_fname(uri)
-                local dir_mappings = path_mappings[dir]
                 for _, mapping in ipairs(dir_mappings) do
                     local from, to = unpack(mapping)
                     local _, end_ = string.find(path, from, 1, true)
@@ -108,22 +113,28 @@ function M.patch_config(config, workspace_dir)
                     end
                 end
 
+                -- If no path mapping matches
                 if dir == 'client2server' then
                     log.warn('Invalid path sent to server in container: %s', uri)
                 else -- server2client
                     -- fall back to docker URIs translation
                     ensure_docker_handlers_loaded()
-                    local container_name = info.container_name
-                    if not vim.startswith(container_name, '/') then
-                        log.warn('Container name does not start with "/" (adding): %s', container_name)
-                        container_name = '/' .. container_name
-                    end
-                    return string.format('docker:/%s%s', container_name, vim.fs.abspath(path))
+                    return docker.uri_from_container_name(info.container_name, vim.fs.abspath(path))
                 end
             elseif scheme == 'docker' then
                 if dir == 'server2client' then
+                    -- We don't expect docker:// paths from within a docker container
                     log.warn('Server sent URI with "docker" scheme: %s', uri)
                 else -- client2server
+                    -- Sending docker:// buffer to the server - translate to the in-container path
+                    local container, path = docker.parse_uri(uri)
+                    if not container then
+                        log.warn('Could not parse docker URI: %s', uri)
+                    elseif container ~= info.container_name then
+                        log.warn('Sending docker path with container "%s" to server in container "%s"', container, info.container_name)
+                    else
+                        return vim.uri_from_fname(assert(path))
+                    end
                 end
             else
                 log.warn('Unsupported scheme: %s', uri)
@@ -131,6 +142,33 @@ function M.patch_config(config, workspace_dir)
         end
     end
 
+    return mappers
+end
+
+---@param config vim.lsp.ClientConfig
+---@param workspace_dir string
+---@return vim.lsp.Client?
+local function get_lsp_client_by_config(config, workspace_dir)
+    local clients = {}
+    for _, client in ipairs(vim.lsp.get_clients { name = config.name }) do
+        if client.config == config then
+            table.insert(clients, client)
+        end
+    end
+
+    if #clients == 0 then
+        log.warn('Could not find %s LSP client for "%s"', config.name, workspace_dir)
+    elseif #clients > 1 then
+        log.warn('More than one %s LSP client for "%s"', config.name, workspace_dir)
+    end
+
+    return clients[1]
+end
+
+---@param config vim.lsp.ClientConfig
+---@param workspace_dir string
+function M.setup(config, workspace_dir)
+    local mappers = make_path_mappers(workspace_dir)
     rpc.patch_config(config, lsp_uri_mappings, function(ctx, value)
         local mapper = mappers[ctx.direction]
         if not mapper then
@@ -138,6 +176,21 @@ function M.patch_config(config, workspace_dir)
         end
         return map_uri(mapper, ctx, value)
     end)
+
+    local info = cache.get(workspace_dir)
+
+    vim.api.nvim_create_autocmd('BufAdd', {
+        desc = 'Attach LSP client to docker:// buffer',
+        group = augroup,
+        pattern = string.format('docker:/%s*', info.container_name),
+        callback = function(o)
+            local client = get_lsp_client_by_config(config, workspace_dir)
+            if client then
+                log.debug('Attaching clinet %s (%s) to buffer %s', client.id, client.config.name, o.buf)
+                vim.lsp.buf_attach_client(o.buf, client.id)
+            end
+        end,
+    })
 end
 
 return M

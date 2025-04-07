@@ -63,7 +63,7 @@ function M.on_new_config(config, root_dir)
     log.debug('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
 
     -- Setup path mappings
-    require('devcontainers.paths').patch_config(config, root_dir)
+    require('devcontainers.paths').setup(config, root_dir)
     log.debug('on_new_config(%s): added path translation', config.name)
 end
 

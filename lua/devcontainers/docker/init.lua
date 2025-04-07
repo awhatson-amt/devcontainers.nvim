@@ -28,4 +28,26 @@ end
 
 M.events = require('devcontainers.docker.events')
 
+---@param container_name string
+---@param abspath string
+---@return string
+function M.uri_from_container_name(container_name, abspath)
+    assert(vim.startswith(abspath, '/'), 'Invalid abspath when constructing docker URI')
+    if not vim.startswith(container_name, '/') then
+        log.warn('Container name does not start with "/" (adding): %s', container_name)
+        container_name = '/' .. container_name
+    end
+    return string.format('docker:/%s%s', container_name, abspath)
+end
+
+local DOCKER_URI_PATTERN = '^docker:/(/[^/]*)(/.*)'
+
+---@param uri string
+---@return string? container
+---@return string? path
+function M.parse_uri(uri)
+    local container, path = uri:match(DOCKER_URI_PATTERN)
+    return container, path
+end
+
 return M
