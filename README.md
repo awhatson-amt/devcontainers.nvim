@@ -44,7 +44,10 @@ type, so there is no need to recursively iterate over all data and match uris by
 
 ## ⚙️ Configuration
 
-Make sure to install the [devcontainers-cli](https://github.com/devcontainers/cli).
+Install dependencies:
+
+* Neovim nightly (not tested on stable but might work)
+* [devcontainers-cli](https://github.com/devcontainers/cli)
 
 Configure the plugin using plugin manager of choice, e.g. lazy.nvim
 
@@ -92,7 +95,7 @@ require('lspconfig').clangd.setup {
 }
 ```
 
-### Usage 
+### Usage
 
 If the setup is correct, this plugin does not require anything more - the LSP should *just work*.
 When you open a file for which LSP has been configured, the devcontainer will be started and then
