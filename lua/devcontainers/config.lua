@@ -19,7 +19,6 @@ local config = vim.deepcopy(default, true)
 local M = {}
 
 function M.setup(opts)
-    print('setup: ', vim.inspect(opts))
     local new = vim.tbl_deep_extend('force', default, opts or {})
     for key, _ in pairs(config) do
         config[key] = nil
