@@ -4,11 +4,11 @@ Neovim plugin that allows to seamlessly run LSP servers in [devcontainers](https
 
 ## Features
 
-* Runs LSP server in devcontainer while Neovim is running on host system
-* Translates paths within LSP `root_dir` between container paths and host system paths
-* Translates paths outside of `root_dir` allowing for seamless `textDocument/definition` to system files inside container
-* Automatically starts devcontainer if `.devcontainer/` exists in `root_dir`
-* Delays LSP server start until devcontainer is ready
+- [x] Run LSP server in devcontainer while Neovim is running on host system
+- [x] Translate paths within LSP `root_dir` between container paths and host system paths
+- [x] Translate paths outside of `root_dir` allowing for seamless `textDocument/definition` to system files inside container
+- [x] Automatically start devcontainer if `.devcontainer/` exists in `root_dir`
+- [x] Delay LSP server start until devcontainer is ready
 
 ## Design
 
@@ -20,7 +20,7 @@ the container and requires modifying the container to install the server.
 Similar apprach is taken by [esensar/nvim-dev-container](https://github.com/esensar/nvim-dev-container) and
 [arnaupv/nvim-devcontainer-cli](https://github.com/arnaupv/nvim-devcontainer-cli).
 
-This plugin takes an alternative approach. Neovim still runs on host system, so you have your full configuration and
+This plugin takes an alternative approach. Neovim runs on host system, so you have your full configuration and
 access to the whole system. However, when starting an LSP server, instead of running it on host system, it runs inside
 the devcontainer itself (using `devcontainer exec ...`). Then devcontainers.nvim intercepts the whole RPC communication
 between LSP client (nvim) and server. All URIs in RPC messages are translated based on devcontainer workspaceFolder
@@ -91,3 +91,14 @@ require('lspconfig').clangd.setup {
     on_new_config = require('devcontainers').on_new_config,
 }
 ```
+
+## Usage
+
+If the setup is correct, this plugin does not require anything more - the LSP should *just work*.
+When you open a file for which LSP has been configured, the devcontainer will be started and then
+LSP client will connect and use the LSP server inside the container.
+
+Some additional commands are available:
+
+* `DevcontainersUp` - start devcontainer
+* `DevcontainersExec cmd...` - execute a command inside devcontainer and print the result
