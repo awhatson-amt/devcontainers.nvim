@@ -1,8 +1,8 @@
-# devcontainers.nvim
+# 📦 devcontainers.nvim
 
 Neovim plugin that allows to seamlessly run LSP servers in [devcontainers](https://containers.dev).
 
-## Features
+## ✨ Features
 
 - [x] Run LSP server in devcontainer while Neovim is running on host system
 - [x] Translate paths within LSP `root_dir` between container paths and host system paths
@@ -10,7 +10,7 @@ Neovim plugin that allows to seamlessly run LSP servers in [devcontainers](https
 - [x] Automatically start devcontainer if `.devcontainer/` exists in `root_dir`
 - [x] Delay LSP server start until devcontainer is ready
 
-## Design
+## 📝 Design
 
 There are multiple approaches to using devcontainers with text editor.
 
@@ -42,7 +42,7 @@ Efficient identification of URIs in LSP messages is possible by utilizing the [m
 provided in LSP specification. devcontainers.nvim parses this file and creates a lookup of URI positions by message
 type, so there is no need to recursively iterate over all data and match uris by regex.
 
-## Configuration
+## ⚙️ Configuration
 
 Make sure to install the [devcontainers-cli](https://github.com/devcontainers/cli).
 
@@ -66,7 +66,7 @@ For full configuration options see [devcontainers/config.lua](lua/devcontainers/
 * [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) - not strictly needed, but will make the configuration much easier; currently there are no official instructions for configuration without nvim-lspconfig
 * [netman.nvim](https://github.com/miversen33/netman.nvim) (or some other plugin) - needed in order to open files from the container (files not mounted on host system); the plugin must provide BufReadCmd for buffers with `docker://` scheme
 
-## Setup instructions
+## 🚀 Getting started
 
 The simplest setup is to enable devcontainers.nvim for all LSP clients:
 
@@ -92,7 +92,7 @@ require('lspconfig').clangd.setup {
 }
 ```
 
-## Usage
+### Usage 
 
 If the setup is correct, this plugin does not require anything more - the LSP should *just work*.
 When you open a file for which LSP has been configured, the devcontainer will be started and then
