@@ -4,23 +4,39 @@ Neovim plugin that allows to seamlessly run LSP servers in [devcontainers](https
 
 ## Features
 
+* Runs LSP server in devcontainer while Neovim is running on host system
+* Translates paths within LSP `root_dir` between container paths and host system paths
+* Translates paths outside of `root_dir` allowing for seamless `textDocument/definition` to system files inside container
 * Automatically starts devcontainer if `.devcontainer/` exists in `root_dir`
 * Delays LSP server start until devcontainer is ready
-* Translates paths within `root_dir` between container paths and host system paths
-* Translates paths outside of `root_dir` allowing for seamless `textDocument/definition` to system files inside container
 
 ## Design
 
 There are multiple approaches to using devcontainers with text editor.
+
 VSCode acts by installing and starting a headless instance of itself inside the container and then connecting
 a frontend to it from the host system. This approach limits usability of the editor for things not related to
 the container and requires modifying the container to install the server.
+Similar apprach is taken by [esensar/nvim-dev-container](https://github.com/esensar/nvim-dev-container) and
+[arnaupv/nvim-devcontainer-cli](https://github.com/arnaupv/nvim-devcontainer-cli).
 
 This plugin takes an alternative approach. Neovim still runs on host system, so you have your full configuration and
-access to the whole system. However, when starting an LSP server, instead of running it on host system, it is run
-inside the devcontainer itself (using `devcontainer exec ...`). Then this plugin intercepts the whole RPC communication
+access to the whole system. However, when starting an LSP server, instead of running it on host system, it runs inside
+the devcontainer itself (using `devcontainer exec ...`). Then devcontainers.nvim intercepts the whole RPC communication
 between LSP client (nvim) and server. All URIs in RPC messages are translated based on devcontainer workspaceFolder
 such that both the client and the server see correct paths for their corresponding environments.
+Below is a simplified diagram:
+
+```mermaid
+flowchart LR
+    subgraph Neovim
+        client["LSP Client"] <-- RPC --> mapping["Path mapping"]
+    end
+    mapping <-- RPC --> server["LSP server"]
+    subgraph Devcontainer
+        server <--> containerFs["Container files"]
+    end
+```
 
 Efficient identification of URIs in LSP messages is possible by utilizing the [metaModel.json](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#metaModel)
 provided in LSP specification. devcontainers.nvim parses this file and creates a lookup of URI positions by message
@@ -45,10 +61,10 @@ Configure the plugin using plugin manager of choice, e.g. lazy.nvim
 
 For full configuration options see [devcontainers/config.lua](lua/devcontainers/config.lua).
 
-Optional dependencies:
+**Optional dependencies:**
 
-* nvim-lspconfig - not strictly needed, but will make the configuration much easier; currently there are no official instructions for configuration without nvim-lspconfig
-* netman.nvim (or some other plugin) - needed in order to open files from the container (files not mounted on host system); the plugin must provide BufReadCmd for buffers with `docker://` scheme
+* [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) - not strictly needed, but will make the configuration much easier; currently there are no official instructions for configuration without nvim-lspconfig
+* [netman.nvim](https://github.com/miversen33/netman.nvim) (or some other plugin) - needed in order to open files from the container (files not mounted on host system); the plugin must provide BufReadCmd for buffers with `docker://` scheme
 
 ## Setup instructions
 
