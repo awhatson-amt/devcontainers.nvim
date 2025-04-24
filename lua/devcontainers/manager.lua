@@ -31,6 +31,19 @@ function M.is_workspace_dir(dir)
     return vim.uv.fs_stat(vim.fs.joinpath(dir, '.devcontainer')) ~= nil
 end
 
+---@param dir? string defaults to local cwd
+---@return string? workspace directory containsing .devcontainers/ directory
+function M.find_workspace_dir(dir)
+    local found = vim.fs.find('.devcontainer', {
+        upward = true,
+        type = 'directory',
+        path = vim.fn.getcwd(0),
+    })
+    if #found ~= 0 then
+        return vim.fs.dirname(found[1])
+    end
+end
+
 ---@async
 ---@param workspace_dir string
 ---@param opts? devcontainer.ensure_up.opts

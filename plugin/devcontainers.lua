@@ -14,7 +14,37 @@ vim.api.nvim_create_user_command('DevcontainersLog', function(args)
         }
     end
     vim.cmd { cmd = 'edit', args = { log_path }, mods = args.smods }
-end, {})
+end, { desc = 'devcontainers.nvim: open log' })
+
+vim.api.nvim_create_user_command('DevcontainersUp', function(args)
+    local manager = require('devcontainers.manager')
+    local log = require('devcontainers.log')()
+    local utils = require('devcontainers.utils')
+
+    local workspace_dir = manager.find_workspace_dir()
+    if not workspace_dir then
+        log.notify.error('Could not find devcontainers workspace directory')
+        return
+    end
+
+    coroutine.wrap(manager.ensure_up)(workspace_dir)
+end, { desc = 'devcontainers.nvim: start devcontainer' })
+
+vim.api.nvim_create_user_command('DevcontainersExec', function(args)
+    local cli = require('devcontainers.cli')
+    local manager = require('devcontainers.manager')
+
+    local workspace_dir = manager.find_workspace_dir()
+    if not workspace_dir then
+        log.notify.error('Could not find devcontainers workspace directory')
+        return
+    end
+
+    coroutine.wrap(function()
+        local result = cli.exec(workspace_dir, args.fargs)
+        print(result.stdout)
+    end)()
+end, { nargs = '+', desc = 'devcontainers.nvim: execute command in container' })
 
 vim.api.nvim_create_autocmd({ 'BufNew', 'BufReadPre', 'BufReadPost', 'BufAdd' }, {
     group = augroup,
