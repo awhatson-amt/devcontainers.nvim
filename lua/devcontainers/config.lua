@@ -10,6 +10,9 @@ local default = {
     docker_cmd = 'docker',
     ---@type string|string[]?
     devcontainers_cli_cmd = 'devcontainer',
+    --- Filter automiatically-added LSP protocol extensions
+    ---@type devcontainers.lsp.ExtensionsFilter?
+    lsp_extensions_filter = nil,
 }
 
 ---@type devcontainers.Config

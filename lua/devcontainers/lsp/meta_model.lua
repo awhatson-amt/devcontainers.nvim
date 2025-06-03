@@ -1,6 +1,7 @@
 local M = {}
 
 local config = require('devcontainers.config')
+local extensions = require('devcontainers.lsp.extensions')
 
 ---@param path string
 ---@return string data
@@ -57,7 +58,7 @@ end
 ---@param version? string
 ---@param no_cache? boolean
 ---@return LspMetaModel.Model
-function M.load(version, no_cache)
+local function load(version, no_cache)
     version = version or config.lsp_version
 
     local cache_dir = vim.fn.stdpath('cache')
@@ -74,6 +75,15 @@ function M.load(version, no_cache)
         write_file_sync(path, data)
         return model
     end
+end
+
+---@param version? string
+---@param no_cache? boolean
+---@return LspMetaModel.Model
+function M.load(version, no_cache)
+    local model = load(version, no_cache)
+    extensions.apply(model, config.lsp_extensions_filter)
+    return model
 end
 
 ---@param key string
