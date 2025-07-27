@@ -74,6 +74,7 @@ local function ensure_up(workspace_dir, opts)
     end
 
     -- Start the devcontainer
+    log.trace('devcontainer_up: %s', workspace_dir)
     local result = cli.devcontainer_up(workspace_dir)
 
     if result.ok then

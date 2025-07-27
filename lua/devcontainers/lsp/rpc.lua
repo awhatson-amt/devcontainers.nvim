@@ -5,6 +5,25 @@ local OperationTree = require('devcontainers.lsp.operation_tree').OperationTree
 local utils = require('devcontainers.utils')
 local log = require('devcontainers.log').rpc
 
+---@enum devcontainers.lsp.ErrorCodes
+M.LspErrorCodes = {
+	ParseError = -32699,
+	InvalidRequest = -32599,
+	MethodNotFound = -32600,
+	InvalidParams = -32601,
+	InternalError = -32602,
+	jsonrpcReservedErrorRangeStart = -32098,
+	ServerNotInitialized = -32001,
+	UnknownErrorCode = -32000,
+	jsonrpcReservedErrorRangeEnd = -31999;
+	lspReservedErrorRangeStart = -32898,
+	RequestFailed = -32802,
+	ServerCancelled = -32801,
+	ContentModified = -32800,
+	RequestCancelled = -32799,
+	lspReservedErrorRangeEnd = -32799,
+}
+
 local model_ctx = meta_model.Context:new(meta_model.load())
 
 ---@alias devcontainers.rpc.Direction 'server2client'|'client2server'
@@ -251,10 +270,108 @@ function M.wrap_client_to_server(rpc, mappings, fn)
     }
 end
 
+---@return vim.lsp.rpc.PublicClient
+---@return fun(client?: vim.lsp.rpc.PublicClient, err?: string) resolve
+function M.make_stub()
+    ---@type (fun(ok: boolean, err?: string))[]
+    local pending = {}
+
+    ---@param callback fun(ok: boolean, err?: string)
+    local function push_pending(callback)
+        table.insert(pending, callback)
+    end
+
+    --- Client table to be returned as vim.lsp.ClientConfig.cmd
+    ---@type vim.lsp.rpc.PublicClient
+    ---@diagnostic disable-next-line:missing-fields
+    local client = {}
+
+    ---@param other vim.lsp.rpc.PublicClient
+    local function set_client(other)
+        client.request = assert(other.request)
+        client.notify = assert(other.notify)
+        client.is_closing = assert(other.is_closing)
+        client.terminate = assert(other.terminate)
+    end
+
+    ---@param new_client? vim.lsp.rpc.PublicClient
+    ---@param err? string
+    local function resolve(new_client, err)
+        if new_client then -- success
+            log.info('stub: resolved sucessfully, handling %d pending operations', #pending)
+            -- Replace the stubs with the final client and successfully resolve all pending operations
+            set_client(new_client)
+            for _, callback in ipairs(pending) do
+                callback(true)
+            end
+        else -- failure
+            err = err or '?'
+            log.info('stub: resolved with error: "%s" (%d pending operations)', err, #pending)
+            -- Resolve all pending operations as errors and don't accept any more operations
+            local function panic()
+                log.exception('stub: rpc client no longer valid: %s', err)
+            end
+            set_client({ request = panic, notify = panic, is_closing = panic, terminate = panic })
+            for _, callback in ipairs(pending) do
+                callback(false, err)
+            end
+        end
+    end
+
+    --- Table with stub methods used until resolve is called
+    ---@type vim.lsp.rpc.PublicClient
+    ---@diagnostic disable-next-line:missing-fields
+    local stub = {}
+    local message_id = 0
+
+    function stub.request(method, params, callback, notify_reply_callback)
+        push_pending(function(ok, err)
+            if ok then
+                assert(client.request ~= stub.request) -- must have already been replaced with the proper client
+                client.request(method, params, callback, notify_reply_callback)
+            else
+                callback({ code = M.LspErrorCodes.ServerNotInitialized, message = err or 'Lsp server startup failed' })
+            end
+        end)
+        message_id = message_id + 1
+        local id = message_id
+        log.debug('stub: queued client2server:request:%s: %d', method, id)
+        return true, id
+    end
+
+    function stub.notify(method, params)
+        push_pending(function(ok)
+            if ok then
+                assert(client.notify ~= stub.notify)
+                client.notify(method, params)
+            end
+        end)
+        log.debug('stub: queued client2server:notify:%s', method)
+        return true
+    end
+
+    function stub.is_closing()
+        return false
+    end
+
+    function stub.terminate()
+        push_pending(function(ok)
+            if ok then
+                assert(client.terminate ~= stub.terminate)
+                client.terminate()
+            end
+        end)
+        log.debug('stub: queued client2server:terminate')
+    end
+
+    set_client(stub)
+    return client, resolve
+end
+
 ---@param config vim.lsp.ClientConfig
+---@param cmd string[]|fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient
 ---@return fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient
-local function cmd_to_rpc(config)
-    local cmd = config.cmd
+function M.cmd_to_rpc(config, cmd)
     if type(cmd) == 'function' then
         return cmd
     end
@@ -268,11 +385,13 @@ local function cmd_to_rpc(config)
 end
 
 ---@param config vim.lsp.ClientConfig
+---@param cmd string[]
 ---@param mappings devcontainers.rpc.Mappings
 ---@param fn devcontainers.rpc.MappingFn
-function M.patch_config(config, mappings, fn)
-    local start_rpc = cmd_to_rpc(config)
-    config.cmd = function(dispatchers)
+---@return fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient
+function M.wrap_cmd(config, cmd, mappings, fn)
+    local start_rpc = M.cmd_to_rpc(config, cmd)
+    return function(dispatchers)
         dispatchers = M.wrap_server_to_client(dispatchers, mappings.server2client, fn)
         local rpc = start_rpc(dispatchers)
         return M.wrap_client_to_server(rpc, mappings.client2server, fn)

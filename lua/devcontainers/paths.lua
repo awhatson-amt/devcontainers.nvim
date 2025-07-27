@@ -166,10 +166,12 @@ local function get_lsp_client_by_config(config, workspace_dir)
 end
 
 ---@param config vim.lsp.ClientConfig
+---@param cmd string[]
 ---@param workspace_dir string
-function M.setup(config, workspace_dir)
+---@return fun(dispatchers: vim.lsp.rpc.Dispatchers): vim.lsp.rpc.PublicClient
+function M.setup(config, cmd, workspace_dir)
     local mappers = make_path_mappers(workspace_dir)
-    rpc.patch_config(config, lsp_uri_mappings, function(ctx, value)
+    local rpc_client = rpc.wrap_cmd(config, cmd, lsp_uri_mappings, function(ctx, value)
         local mapper = mappers[ctx.direction]
         if not mapper then
             log.exception('Invalid direction: %s', ctx.direction)
@@ -191,7 +193,8 @@ function M.setup(config, workspace_dir)
             end
         end,
     })
+
+    return rpc_client
 end
 
 return M
-

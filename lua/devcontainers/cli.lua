@@ -203,7 +203,7 @@ end
 function M.exec(workspace_dir, cmd, opts)
     local result = utils.system(M.cmd(workspace_dir, 'exec', unpack(cmd)), opts)
     if result.code ~= 0 then
-        log.exception('exec failed for %s: %s', workspace_dir, result.stderr)
+        log.exception('exec failed for %s: stderr="%s" stdout="%s" signal=%s', workspace_dir, result.stderr, result.stdout, result.signal)
     end
     return { stdout = result.stdout, stderr = result.stderr }
 end

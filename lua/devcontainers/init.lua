@@ -49,7 +49,7 @@ function M.on_new_config(config, root_dir)
 
     -- Test whether this server can even be started inside devcontainer, otherwise leave the config as-is
     -- TODO: make the test configurable, allow users to exclude/include certain LSPs
-    local test_cmd = vim.list_slice(config.cmd)
+    local test_cmd = vim.list_slice(config.cmd --[[@as string[] ]])
     table.insert(test_cmd, '--help')
     log.trace('Testing %s LSP in devcontainer "%s" with cmd: %s', config.name, root_dir, utils.lazy_inspect_oneline(test_cmd))
     local ok = pcall(cli.exec, root_dir, test_cmd, { timeout = 3000 })
@@ -59,12 +59,133 @@ function M.on_new_config(config, root_dir)
     end
 
     -- Update command to start in devcontainer
-    config.cmd = cli.cmd(root_dir, 'exec', unpack(config.cmd))
+    config.cmd = cli.cmd(root_dir, 'exec', unpack(config.cmd --[[@as string[] ]]))
     log.debug('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
 
     -- Setup path mappings
-    require('devcontainers.paths').setup(config, root_dir)
+    config.cmd = require('devcontainers.paths').setup(config, root_dir)
     log.debug('on_new_config(%s): added path translation', config.name)
+end
+
+---@return boolean
+---@return string?
+local function validate_cmd(cmd)
+    if type(cmd) ~= 'table' or type(cmd[1]) ~= 'string' then
+        return false, '`cmd` must be non-empty string[]'
+    end
+    if cmd[1] == 'devcontainers' then
+        return false, '`cmd` should not run `devcontainer` cli'
+    end
+    return true
+end
+
+---@class devcontainers.make_cmd.opts
+---@field no_local_fallback? boolean Run server without container as a fallback
+---@field before_start? fun(config: vim.lsp.ClientConfig) callback invoked (in coroutine) after devcontainer up but before server start, can error() to stop
+
+---@param get_cmd fun(config: vim.lsp.ClientConfig): string[]
+---@param opts? devcontainers.make_cmd.opts
+---@return fun(dispatchers: vim.lsp.rpc.Dispatchers, config: vim.lsp.ClientConfig): vim.lsp.rpc.PublicClient
+local function make_lsp_cmd(get_cmd, opts)
+    opts = opts or {}
+
+    ---@param dispatchers vim.lsp.rpc.Dispatchers
+    ---@param config vim.lsp.ClientConfig
+    ---@return vim.lsp.rpc.PublicClient
+    return function(dispatchers, config)
+        vim.validate('config.root_dir', config.root_dir, 'string', 'At this point config.root_dir should have already been resolved')
+
+        local cmd = get_cmd(config)
+        vim.validate('cmd', cmd, validate_cmd)
+
+        local manager = require('devcontainers.manager')
+        local utils = require('devcontainers.utils')
+        local cli = require('devcontainers.cli')
+        local log = require('devcontainers.log')()
+        local paths = require('devcontainers.paths')
+        local rpc = require('devcontainers.lsp.rpc')
+
+        log.trace('make_cmd()(%s): root_dir=%s, cmd=%s, cmd_env=%s', config.name, config.root_dir, utils.lazy_inspect_oneline(cmd), utils.lazy_inspect_oneline(config.cmd_env))
+
+        -- Store some debug information in the config
+        if config._devcontainers then
+            log.exception('Client has already been wrapped in devcontainers.lsp_cmd: name=%s root_dir=%', config.name, config.root_dir)
+        end
+        config._devcontainers = {}---@diagnostic disable-line:inject-field
+
+        -- Make fallback cmd that tries to start client without container
+        local function make_local_fallback_cmd(reason)
+            if opts.no_local_fallback then
+                log.exception('could start in devcontainer: name=%s, root_dir=%s: %s', config.name, config.root_dir, reason)
+            end
+            log.warn('falling back to local cmd: name=%s, root_dir=%s: %s', config.name, config.root_dir, reason)
+            config._devcontainers.cmd = cmd
+            return rpc.cmd_to_rpc(config, cmd)(dispatchers)
+        end
+
+        if not manager.is_workspace_dir(config.root_dir) then
+            return make_local_fallback_cmd('not a workspace dir')
+        end
+
+        local final_cmd = cli.cmd(config.root_dir, 'exec', unpack(cmd))
+        config._devcontainers.original_cmd = cmd
+        config._devcontainers.cmd = final_cmd
+
+        local rpc_client, resolve = rpc.make_stub()
+
+        ---@async
+        ---@return vim.lsp.rpc.PublicClient
+        local function initialize_devcontainer()
+            local success = manager.ensure_up(config.root_dir)
+            if not success then
+                log.exception('Could not start devcontainer for %s in %s', config.name, config.root_dir)
+            end
+
+            if opts.before_start then
+                opts.before_start(config)
+            end
+
+            return paths.setup(config, final_cmd, config.root_dir)(dispatchers)
+        end
+
+        -- Start a couroutine that will resolve our stub when devcontainer starts (or fails)
+        coroutine.wrap(function()
+            local ok, rpc_or_err = xpcall(initialize_devcontainer, debug.traceback)
+            if ok then
+                resolve(rpc_or_err)
+            else
+                log.notify.error('LSP setup failed: %s', rpc_or_err or '?')
+                resolve(nil, rpc_or_err) ---@diagnostic disable-line:param-type-mismatch
+            end
+        end)()
+
+        return rpc_client
+    end
+end
+
+--- Make `cmd` for vim.lsp.config that will start LSP server using the given command inside a devcontainer
+---
+--- This uses the function variant of `vim.lsp.ClientConfig.cmd`, to inspect the client configuration before
+--- the LSP server is spawned. If there is no `.devcontainer/` in `root_dir` then `cmd` will be run locally
+--- without starting devcontainer. Otherwise a devcontainer will be started if needed and when it's up the LSP
+--- server will be run inside it with whole RPC communication translated to fix filesystem paths.
+---
+--- Example usage:
+--- ```lua
+--- vim.lsp.config('clangd', { cmd = require('devcontainers').lsp_cmd({ 'clangd' }) })
+--- ```
+---
+---@param cmd string[]|(fun(config: vim.lsp.ClientConfig): string[])
+---@param opts? devcontainers.make_cmd.opts
+---@return fun(dispatchers: vim.lsp.rpc.Dispatchers, config: vim.lsp.ClientConfig): vim.lsp.rpc.PublicClient
+function M.lsp_cmd(cmd, opts)
+    local function get_cmd(config)
+        if vim.is_callable(cmd) then
+            return cmd(config)
+        end
+        return cmd
+    end
+    return make_lsp_cmd(get_cmd, opts)
 end
 
 return M
