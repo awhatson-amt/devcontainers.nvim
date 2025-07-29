@@ -190,6 +190,11 @@ function M.wrap_client_to_server(rpc, mappings, fn)
     ---@type vim.lsp.rpc.PublicClient
     return {
         request = function(method, params, callback, notify_reply_callback)
+            -- NOTE: We need to deepcopy because some data in params may be stored by reference, e.g. vim.lsp puts workspace_folders
+            -- in initialize request so modifying it leads to problems. Deepcopying is seems to be cheap enough to do this for every
+            -- if it ever becomes bottleneck we may try to limit it to only the `params` that we modify.
+            -- `noref=true` seems to be more performant for LSP from my benchmarks.
+            params = vim.deepcopy(params, true)
             log.debug('client2server:request:%s', method)
             log.trace('params=%s', utils.lazy_inspect_oneline(params))
             params = apply(params, fn, {
@@ -213,6 +218,7 @@ function M.wrap_client_to_server(rpc, mappings, fn)
             end, notify_reply_callback)
         end,
         notify = function(method, params)
+            params = vim.deepcopy(params, true)
             log.debug('client2server:notify:%s', method)
             log.trace('params=%s', utils.lazy_inspect_oneline(params))
             params = apply(params, fn, {
