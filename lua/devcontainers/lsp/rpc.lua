@@ -108,43 +108,6 @@ function M.make_mappings(item_filter)
     return mappings
 end
 
---- Timings in milliseconds
-M.stats = {
-    min = math.huge,
-    max = 0,
-    total = 0,
-    count = 0,
-}
-
-function M.show_stats()
-    print(string.format(
-        'count: %d\nmean: %.3f ms\nmax: %.3f ms\nmin: %.3f ms\n',
-        M.stats.count,
-        M.stats.total / M.stats.count,
-        M.stats.max,
-        M.stats.min
-    ))
-end
-
----@generic T: function
----@param fn T
----@return T
-local function timed(fn)
-    return function(...)
-        local start = vim.uv.hrtime()
-        local value = fn(...)
-        local elapsed = vim.uv.hrtime() - start
-
-        local ms = elapsed / 1e6
-        M.stats.count = M.stats.count + 1
-        M.stats.min = math.min(M.stats.min, ms)
-        M.stats.max = math.max(M.stats.max, ms)
-        M.stats.total = M.stats.total + ms
-
-        return value
-    end
-end
-
 ---@generic T
 ---@param value T
 ---@param fn devcontainers.rpc.MappingFn
@@ -165,7 +128,8 @@ local function apply(value, fn, ctx)
     return value
 end
 
-apply = timed(apply)
+M.stats = utils.new_stats()
+apply = M.stats:wrap_fn(apply)
 
 ---@param dispatchers vim.lsp.rpc.Dispatchers
 ---@param mappings devcontainers.rpc.DirectionMappings

@@ -157,6 +157,66 @@ M.system = M.timed(M._system, function(time_ms, cmd, _opts)
     log.trace('Command took %.3f ms: %s', time_ms, table.concat(cmd, ' '))
 end)
 
+---@param val number
+function M.human_unit(val)
+    -- local mid, prefixes = 7 {'a', 'f', 'p', 'n', 'μ', 'm', '', 'k', 'M', 'G', 'T', 'P', 'E'}
+    -- Use only the ones that are "well-known"
+    local mid, prefixes = 5, {'p', 'n', 'μ', 'm', '', 'k', 'M', 'G', 'T'}
+    local magnitude = math.log10(math.abs(val))
+    local i = math.floor(magnitude / 3) + mid
+    local multiplier = math.pow(10, (i - mid) * 3)
+    return val / multiplier, prefixes[i]
+end
+
+---@class devcontainers.Stats
+local Stats = {}
+Stats.__index = Stats
+
+---@return devcontainers.Stats
+function M.new_stats()
+    return setmetatable({ min = math.huge, max = 0, total = 0, count = 0 }, Stats)
+end
+
+---@param ns number time in nanoseconds (result of vim.uv.hrtime)
+function Stats:update(ns)
+    -- we can keep using nanoseconds - max `number` integer precision is 2^53-1,
+    -- so it won't wrap for 104.25 days of uptime
+    self.total = self.total + ns
+    self.count = self.count + 1
+    self.min = math.min(self.min, ns)
+    self.max = math.max(self.max, ns)
+end
+
+---@param fn function
+function Stats:timeit(fn, ...)
+    local start = vim.uv.hrtime()
+    local ret = vim.F.pack_len(fn(...))
+    self:update(vim.uv.hrtime() - start)
+    return vim.F.unpack_len(ret)
+end
+
+---@generic T: function
+---@param fn T
+---@return T
+function Stats:wrap_fn(fn)
+    return function(...)
+        return self:timeit(fn, ...)
+    end
+end
+
+local function format_time(ns)
+    return string.format('%.3f %ss', M.human_unit(ns / 1e9))
+end
+
+function Stats:__tostring()
+    return string.format(
+        'count=%d, mean=%s, min=%s, max=%s',
+        self.count,
+        format_time(self.total / self.count),
+        format_time(self.min),
+        format_time(self.max))
+end
+
 -- Not really needed right know
 -- local function freeze(tbl)
 --     return setmetatable({}, {
