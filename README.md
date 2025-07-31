@@ -9,6 +9,8 @@ Neovim plugin that allows to seamlessly run LSP servers in [devcontainers](https
 - [x] Translate paths outside of `root_dir` allowing for seamless `textDocument/definition` to system files inside container
 - [x] Automatically start devcontainer if `.devcontainer/` exists in `root_dir`
 - [x] Delay LSP server start until devcontainer is ready
+- [x] Compatible with new `vim.lsp.config` API
+- [x] Compatible with the legacy [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) `on_new_config` API
 
 ## 📝 Design
 
@@ -55,7 +57,6 @@ Configure the plugin using plugin manager of choice, e.g. lazy.nvim
 {
     'jedrzejboczar/devcontainers.nvim',
     dependencies = {
-        'nvim-lspconfig', -- for configuration using on_new_config hook
         'netman.nvim', -- optional to browse files in docker container
     },
     opts = {},
@@ -69,7 +70,49 @@ For full configuration options see [devcontainers/config.lua](lua/devcontainers/
 * [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) - not strictly needed, but will make the configuration much easier; currently there are no official instructions for configuration without nvim-lspconfig
 * [netman.nvim](https://github.com/miversen33/netman.nvim) (or some other plugin) - needed in order to open files from the container (files not mounted on host system); the plugin must provide BufReadCmd for buffers with `docker://` scheme
 
-## 🚀 Getting started
+## 🚀 Getting started (`vim.lsp.config`)
+
+### Built-in `vim.lsp.config`
+
+To use devcontainers.nvim with the new built-in Neovim `vim.lsp.config` API you just need to change the `cmd`
+in configuration table, e.g.
+
+```lua
+vim.lsp.config('clangd', { cmd = require('devcontainers').lsp_cmd({ 'clangd' }) })
+```
+
+Or if you already have some config defined in `lsp/*.lua` file under `runtimepath` (these files are now e.g.
+provided by nvim-lspconfig), you can wrap `cmd` defined there, e.g.
+
+```lua
+vim.lsp.config('clangd', { cmd = require('devcontainers').lsp_cmd(vim.lsp.config.clangd.cmd) })
+```
+
+You can also define different `cmd` to use on per-directory basis using
+`require('devcontainers.local_cmd').set(root_dir, client_name, cmd)`.
+This can also be put in `.nvim.lua` instead your main Neovim config
+(see ['exrc'](https://neovim.io/doc/user/options.html#'exrc')).
+
+For example, suppose that you have some default `cmd = { 'clangd' }` already defined, but if you start LSP
+root_dir matches `/some/dir` then you want to have different command:
+
+```lua
+vim.lsp.config('clangd', { cmd = require('devcontainers').lsp_cmd { 'clangd' } })
+require('devcontainers.local_cmd').set('/some/dir', 'clangd', { 'clangd', '--query-driver=/usr/bin/arm-none-eabi-*' })
+```
+
+This can be combined with ['exrc'](https://neovim.io/doc/user/options.html#'exrc'). Ensure that 'exrc' is enabled
+(`set exrc`), then `/some/dir/.nvim.lua`:
+
+```lua
+local dir = '/some/dir' -- or by parsing `debug.getinfo(1, 'S').source`
+require('devcontainers.local_cmd').set(dir, 'clangd', { 'clangd', '--query-driver=/usr/bin/arm-none-eabi-*' })
+```
+
+### nvim-lspconfig + on_new_config
+
+> This is still supported but considered legacy API. `on_new_config` is deprecated in nvim-lspconfig
+> so users are advised to use the new built-in `vim.lsp.config` API.
 
 The simplest setup is to enable devcontainers.nvim for all LSP clients:
 
