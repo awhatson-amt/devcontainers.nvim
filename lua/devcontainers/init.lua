@@ -163,6 +163,8 @@ local function make_lsp_cmd(get_cmd, opts)
     end
 end
 
+---@alias devcontainers.ClientCmd string[]|(fun(config: vim.lsp.ClientConfig): string[])
+
 --- Make `cmd` for vim.lsp.config that will start LSP server using the given command inside a devcontainer
 ---
 --- This uses the function variant of `vim.lsp.ClientConfig.cmd`, to inspect the client configuration before
@@ -175,17 +177,30 @@ end
 --- vim.lsp.config('clangd', { cmd = require('devcontainers').lsp_cmd({ 'clangd' }) })
 --- ```
 ---
----@param cmd string[]|(fun(config: vim.lsp.ClientConfig): string[])
+--- This integrates with `devcontainers.local_cmd` to allow using different `cmd` dynamically when the started
+--- language server's `root_dir` is under specific directory, e.g.
+--- ```lua
+--- require('devcontainers.local_cmd').set('/some/root/dir', 'clangd', { 'clangd', '--query-driver=/usr/bin/arm-none-eabi-*' })
+--- ```
+--- Combined with 'exrc' option you can have per-directory local commands (just put the above in .nvim.lua).
+---
+---@param cmd devcontainers.ClientCmd
 ---@param opts? devcontainers.make_cmd.opts
 ---@return fun(dispatchers: vim.lsp.rpc.Dispatchers, config: vim.lsp.ClientConfig): vim.lsp.rpc.PublicClient
 function M.lsp_cmd(cmd, opts)
-    local function get_cmd(config)
-        if vim.is_callable(cmd) then
-            return cmd(config)
+    return make_lsp_cmd(function(config)
+        -- TODO: is there any way to just use the built-in 'exrc`? Using .nvim/lsp/*.lua doesn't seem to work
+        -- Try to resolve local command registered for this directory
+        local local_cmd = require('devcontainers.local_cmd')
+        local used_cmd = local_cmd.get(config.root_dir, config.name) or cmd
+
+        -- If it is a function that call it
+        if vim.is_callable(used_cmd) then
+            return used_cmd(config)
         end
-        return cmd
-    end
-    return make_lsp_cmd(get_cmd, opts)
+
+        return used_cmd
+    end, opts)
 end
 
 return M
