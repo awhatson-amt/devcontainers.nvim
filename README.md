@@ -67,7 +67,6 @@ For full configuration options see [devcontainers/config.lua](lua/devcontainers/
 
 **Optional dependencies:**
 
-* [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) - not strictly needed, but will make the configuration much easier; currently there are no official instructions for configuration without nvim-lspconfig
 * [netman.nvim](https://github.com/miversen33/netman.nvim) (or some other plugin) - needed in order to open files from the container (files not mounted on host system); the plugin must provide BufReadCmd for buffers with `docker://` scheme
 
 ## 🚀 Getting started (`vim.lsp.config`)
