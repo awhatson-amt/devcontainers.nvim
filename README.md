@@ -68,6 +68,7 @@ For full configuration options see [devcontainers/config.lua](lua/devcontainers/
 **Optional dependencies:**
 
 * [netman.nvim](https://github.com/miversen33/netman.nvim) (or some other plugin) - needed in order to open files from the container (files not mounted on host system); the plugin must provide BufReadCmd for buffers with `docker://` scheme
+* [overseer.nvim](https://github.com/stevearc/overseer.nvim) - if available, then will be used to run `devcontainer up` as overseer task, this allows to view output in buffer, stop/restart, etc.
 
 ## 🚀 Getting started (`vim.lsp.config`)
 
