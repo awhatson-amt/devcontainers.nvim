@@ -25,23 +25,21 @@ local cache = require('devcontainers.cache')
 ---@type table<string, thread[]> threads to notify after ensure_up completed
 local pending_ups = {}
 
----@param dir string
----@return boolean
-function M.is_workspace_dir(dir)
-    return vim.uv.fs_stat(vim.fs.joinpath(dir, '.devcontainer')) ~= nil
-end
-
----@param dir? string defaults to local cwd
+---@param dir? string defaults to current buffer's directory
 ---@return string? workspace directory containsing .devcontainers/ directory
 function M.find_workspace_dir(dir)
-    local found = vim.fs.find('.devcontainer', {
-        upward = true,
-        type = 'directory',
-        path = vim.fn.getcwd(0),
-    })
-    if #found ~= 0 then
-        return vim.fs.dirname(found[1])
+    if dir == nil then
+        local name = vim.api.nvim_buf_get_name(0)
+        if name ~= "" then
+            dir = vim.fs.dirname(name)
+        else
+            dir = vim.fn.getcwd(0)
+        end
     end
+
+    local workspace_dir = vim.fs.root(dir, { ".devcontainer" })
+    log.trace('find_workspace_dir(%s): %s', dir, workspace_dir)
+    return workspace_dir
 end
 
 ---@async
@@ -116,7 +114,8 @@ function M.ensure_up(workspace_dir, opts)
     end
 
     -- Add caller thread to observers and wait
-    table.insert(pending_ups[workspace_dir], coroutine.running())
+    local co = assert(coroutine.running())
+    table.insert(pending_ups[workspace_dir], co)
     if start then
         start()
     end

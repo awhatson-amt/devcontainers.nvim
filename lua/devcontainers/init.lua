@@ -22,7 +22,8 @@ function M.on_new_config(config, root_dir)
 
     log.trace('on_new_config(%s): root_dir=%s, cmd=%s, cmd_env=%s', config.name, root_dir, utils.lazy_inspect_oneline(config.cmd), utils.lazy_inspect_oneline(config.cmd_env))
 
-    if not manager.is_workspace_dir(root_dir) then
+    local workspace_dir = manager.find_workspace_dir(root_dir)
+    if not workspace_dir then
         log.debug('on_new_config(%s): not a workspace dir: %s', config.name, root_dir)
         return
     end
@@ -37,7 +38,7 @@ function M.on_new_config(config, root_dir)
         return
     end
 
-    local success = manager.ensure_up(root_dir)
+    local success = manager.ensure_up(workspace_dir)
     if not success then
         log.error('Could not start devcontainer for %s in %s', config.name, root_dir)
         return
@@ -52,18 +53,18 @@ function M.on_new_config(config, root_dir)
     local test_cmd = vim.list_slice(config.cmd --[[@as string[] ]])
     table.insert(test_cmd, '--help')
     log.trace('Testing %s LSP in devcontainer "%s" with cmd: %s', config.name, root_dir, utils.lazy_inspect_oneline(test_cmd))
-    local ok = pcall(cli.exec, root_dir, test_cmd, { timeout = 3000 })
+    local ok = pcall(cli.exec, workspace_dir, test_cmd, { timeout = 3000 })
     if not ok then
         log.error('Could not start %s LSP in devcontainer, falling back to local: %s', config.name, root_dir)
         return
     end
 
     -- Update command to start in devcontainer
-    config.cmd = cli.cmd(root_dir, 'exec', unpack(config.cmd --[[@as string[] ]]))
+    config.cmd = cli.cmd(workspace_dir, 'exec', unpack(config.cmd --[[@as string[] ]]))
     log.debug('on_new_config(%s): cmd=%s', config.name, utils.lazy_inspect_oneline(config.cmd))
 
     -- Setup path mappings
-    config.cmd = require('devcontainers.paths').setup(config, root_dir)
+    config.cmd = require('devcontainers.paths').setup(config, workspace_dir)
     log.debug('on_new_config(%s): added path translation', config.name)
 end
 
@@ -123,11 +124,12 @@ local function make_lsp_cmd(get_cmd, opts)
             return rpc.cmd_to_rpc(config, cmd)(dispatchers)
         end
 
-        if not manager.is_workspace_dir(config.root_dir) then
+        local workspace_dir = manager.find_workspace_dir(config.root_dir)
+        if not workspace_dir then
             return make_local_fallback_cmd('not a workspace dir')
         end
 
-        local final_cmd = cli.cmd(config.root_dir, 'exec', unpack(cmd))
+        local final_cmd = cli.cmd(workspace_dir, 'exec', unpack(cmd))
         config._devcontainers.original_cmd = cmd
         config._devcontainers.cmd = final_cmd
 
@@ -136,7 +138,7 @@ local function make_lsp_cmd(get_cmd, opts)
         ---@async
         ---@return vim.lsp.rpc.PublicClient
         local function initialize_devcontainer()
-            local success = manager.ensure_up(config.root_dir)
+            local success = manager.ensure_up(workspace_dir)
             if not success then
                 log.exception('Could not start devcontainer for %s in %s', config.name, config.root_dir)
             end
@@ -145,7 +147,7 @@ local function make_lsp_cmd(get_cmd, opts)
                 opts.before_start(config)
             end
 
-            return paths.setup(config, final_cmd, config.root_dir)(dispatchers)
+            return paths.setup(config, final_cmd, workspace_dir)(dispatchers)
         end
 
         -- Start a couroutine that will resolve our stub when devcontainer starts (or fails)
